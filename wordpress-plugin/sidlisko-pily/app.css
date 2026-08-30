@@ -77,6 +77,13 @@
 .sidlisko-pily-app h3.sec{font-family:var(--sans);text-transform:uppercase;letter-spacing:.14em;font-size:12px;
   font-weight:600;margin:26px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
 .sidlisko-pily-app .kod{font-family:var(--mono);font-size:12px;color:var(--survey)}
+.sidlisko-pily-app .kod-edit{
+  font-family:var(--mono);font-size:12px;color:var(--survey);
+  background:transparent;border:1px solid transparent;border-radius:0;
+  padding:1px 3px;width:110px;
+}
+.sidlisko-pily-app .kod-edit:hover{border-color:var(--line)}
+.sidlisko-pily-app .kod-edit:focus{border-color:var(--survey);background:var(--white)}
 .sidlisko-pily-app .lead{font-family:var(--serif);font-size:16px;color:var(--ink);margin:10px 0 0}
 .sidlisko-pily-app .muted{color:var(--ink-2)}
 

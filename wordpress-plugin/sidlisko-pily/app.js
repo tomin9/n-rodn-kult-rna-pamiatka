@@ -662,8 +662,7 @@ function miniPlan(b, activeId){
 function renderBudova(b){
   const totalVyskytov = b.priecelia.reduce((s,f)=>s+f.vyskyty.length,0);
   panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
-    <p class="eyebrow">Budova <span class="kod">${esc(b.kod||b.id)}</span></p>
-    <input class="in" data-path="nazov" value="${esc(b.nazov)}" placeholder="Názov domu" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
+    <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
     <h3 class="sec">Základné údaje</h3>
     <table class="meta">
       ${fieldRow("Pôvodné označenie", b.oznacenie, "oznacenie")}
