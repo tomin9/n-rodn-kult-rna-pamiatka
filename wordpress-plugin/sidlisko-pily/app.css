@@ -1,0 +1,148 @@
+.sidlisko-pily-app{
+  --ink:#14161a;
+  --ink-2:#5a6068;
+  --ink-3:#8d939a;
+  --paper:#f4f3f0;
+  --line:#d5d3cd;
+  --white:#ffffff;
+  --marker:#f2c230;
+  --survey:#d0342c;
+  --sans:"Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --serif:"Newsreader", Georgia, serif;
+  --mono:"IBM Plex Mono", ui-monospace, monospace;
+  display:flex;flex-direction:column;height:100vh;height:100dvh;
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--serif);font-size:15px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;overscroll-behavior:none;
+}
+.sidlisko-pily-app, .sidlisko-pily-app *{box-sizing:border-box}
+.sidlisko-pily-app button{font:inherit;color:inherit}
+.sidlisko-pily-app :focus-visible{outline:2px solid var(--survey);outline-offset:2px}
+
+.sidlisko-pily-app header{
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  padding:10px 16px;border-bottom:1px solid var(--line);background:var(--paper);
+}
+.sidlisko-pily-app header h1{
+  font-family:var(--sans);font-weight:700;font-size:19px;letter-spacing:.14em;
+  text-transform:uppercase;margin:0;
+}
+.sidlisko-pily-app header .sub{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.04em}
+.sidlisko-pily-app header .spacer{flex:1}
+.sidlisko-pily-app .tool{
+  font-family:var(--sans);text-transform:uppercase;letter-spacing:.1em;font-size:12px;font-weight:600;
+  background:none;border:1px solid var(--line);padding:5px 10px;cursor:pointer;border-radius:0;
+}
+.sidlisko-pily-app .tool:hover{border-color:var(--ink);}
+.sidlisko-pily-app .tool[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.sidlisko-pily-app main{flex:1;display:grid;grid-template-columns:1fr 400px;min-height:0}
+@media (min-width:901px){
+  .sidlisko-pily-app.wide-panel main{grid-template-columns:1fr minmax(420px,58%)}
+}
+@media (max-width:900px){
+  .sidlisko-pily-app main{grid-template-columns:1fr;grid-template-rows:52vh 1fr}
+}
+
+.sidlisko-pily-app #sp-viewport{position:relative;overflow:hidden;background:#ddd;border-right:1px solid var(--line)}
+.sidlisko-pily-app #sp-map{position:absolute;inset:0}
+.sidlisko-pily-app .mapboxgl-canvas{outline:none}
+.sidlisko-pily-app .mapboxgl-ctrl-logo{opacity:.55}
+
+.sidlisko-pily-app .mapnote{
+  position:absolute;left:14px;bottom:14px;font-family:var(--mono);font-size:11px;
+  color:var(--ink-2);background:rgba(255,255,255,.88);padding:6px 9px;border:1px solid var(--line);
+  max-width:min(60ch,70%);z-index:2;pointer-events:none;
+}
+.sidlisko-pily-app .geobadge{
+  position:absolute;left:14px;top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  color:var(--ink-2);background:rgba(255,255,255,.88);padding:4px 8px;border:1px solid var(--line);z-index:2;
+}
+
+.sidlisko-pily-app #sp-panel{overflow-y:auto;background:var(--paper);padding:0 0 60px}
+.sidlisko-pily-app .pad{padding:20px}
+.sidlisko-pily-app .crumb{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px;color:var(--ink-2);
+  border-bottom:1px solid var(--line);padding:10px 20px;position:sticky;top:0;background:var(--paper);z-index:3;
+}
+.sidlisko-pily-app .crumb a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line);cursor:pointer}
+.sidlisko-pily-app .crumb a:hover{color:var(--survey);border-color:var(--survey)}
+.sidlisko-pily-app .eyebrow{font-family:var(--sans);text-transform:uppercase;letter-spacing:.16em;font-size:11px;
+  font-weight:600;color:var(--ink-2);margin:0 0 6px}
+.sidlisko-pily-app h2.title{font-family:var(--sans);font-weight:700;font-size:30px;line-height:1.05;
+  letter-spacing:.02em;text-transform:uppercase;margin:0 0 4px}
+.sidlisko-pily-app h3.sec{font-family:var(--sans);text-transform:uppercase;letter-spacing:.14em;font-size:12px;
+  font-weight:600;margin:26px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.sidlisko-pily-app .kod{font-family:var(--mono);font-size:12px;color:var(--survey)}
+.sidlisko-pily-app .lead{font-family:var(--serif);font-size:16px;color:var(--ink);margin:10px 0 0}
+.sidlisko-pily-app .muted{color:var(--ink-2)}
+
+.sidlisko-pily-app table.meta{width:100%;border-collapse:collapse;font-size:14px}
+.sidlisko-pily-app table.meta th{
+  text-align:left;font-family:var(--sans);text-transform:uppercase;letter-spacing:.08em;
+  font-size:11px;font-weight:600;color:var(--ink-2);width:38%;padding:6px 8px 6px 0;
+  vertical-align:top;border-bottom:1px solid var(--line);
+}
+.sidlisko-pily-app table.meta td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+
+.sidlisko-pily-app .plan{display:flex;gap:16px;align-items:flex-start;margin-top:6px}
+.sidlisko-pily-app .plan svg{background:var(--white);border:1px solid var(--line);flex:0 0 auto}
+.sidlisko-pily-app .plan .legend{font-family:var(--mono);font-size:11px;color:var(--ink-2);line-height:1.7}
+.sidlisko-pily-app .fedge{stroke:#c9c6bf;stroke-width:1.4;cursor:pointer;fill:none;stroke-linecap:round;stroke-dasharray:1 2.2}
+.sidlisko-pily-app .fedge:hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-facade{stroke:var(--ink);stroke-width:3;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-active{stroke:var(--survey);stroke-width:5;stroke-dasharray:none}
+.sidlisko-pily-app .fhit-mini{stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
+.sidlisko-pily-app .plan .fill{fill:var(--ink);fill-opacity:.32;stroke:none}
+
+.sidlisko-pily-app ul.list{list-style:none;margin:0;padding:0}
+.sidlisko-pily-app ul.list li{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+.sidlisko-pily-app ul.list li .tag{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink-2);border:1px solid var(--line);padding:1px 5px;flex:0 0 auto}
+.sidlisko-pily-app ul.list li a{color:var(--ink);text-underline-offset:3px}
+.sidlisko-pily-app .fitem{display:flex;justify-content:space-between;gap:10px;width:100%;background:none;border:0;
+  padding:9px 0;cursor:pointer;text-align:left;border-bottom:1px solid var(--line);align-items:baseline}
+.sidlisko-pily-app .fitem:hover .fname{color:var(--survey)}
+.sidlisko-pily-app .fitem:disabled{cursor:default}
+.sidlisko-pily-app .fitem:disabled:hover .fname{color:inherit}
+.sidlisko-pily-app .fname{font-family:var(--sans);text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:14px}
+.sidlisko-pily-app .fdir{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+
+.sidlisko-pily-app .empty{border:1px dashed var(--line);padding:18px;text-align:center;color:var(--ink-2);font-size:14px}
+.sidlisko-pily-app .in{font-family:var(--serif);font-size:14px;background:var(--white);border:1px solid var(--line);
+  padding:5px 7px;width:100%}
+.sidlisko-pily-app textarea.in{min-height:80px;resize:vertical;line-height:1.5}
+.sidlisko-pily-app select.in{appearance:auto}
+.sidlisko-pily-app .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.sidlisko-pily-app .btn{font-family:var(--sans);text-transform:uppercase;letter-spacing:.1em;font-size:12px;font-weight:600;
+  background:var(--ink);color:var(--paper);border:1px solid var(--ink);padding:7px 12px;cursor:pointer}
+.sidlisko-pily-app .btn.ghost{background:none;color:var(--ink)}
+.sidlisko-pily-app .btn.warn{background:none;color:var(--survey);border-color:var(--survey)}
+.sidlisko-pily-app .btn:hover{opacity:.85}
+.sidlisko-pily-app .btn:disabled{opacity:.5;cursor:wait}
+.sidlisko-pily-app .hint{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:8px}
+
+/* ---------- fotografie priečelí ---------- */
+.sidlisko-pily-app .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:8px}
+.sidlisko-pily-app .photo-grid button.ph{border:1px solid var(--line);background:var(--white);padding:0;cursor:pointer;
+  aspect-ratio:4/3;overflow:hidden;display:block;width:100%}
+.sidlisko-pily-app .photo-grid button.ph:hover{border-color:var(--survey)}
+.sidlisko-pily-app .photo-grid img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ---------- fotka s bodkami výskytov ---------- */
+.sidlisko-pily-app .photo-wrap{position:relative;margin-top:8px;border:1px solid var(--line);background:var(--white)}
+.sidlisko-pily-app .photo-wrap img{width:100%;display:block;user-select:none}
+.sidlisko-pily-app .photo-wrap.adding img{cursor:crosshair}
+.sidlisko-pily-app .vmark{
+  position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;
+  background:var(--mc,#8d939a);color:#fff;font-family:var(--mono);font-size:11px;font-weight:500;
+  border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:pointer;padding:0;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.sidlisko-pily-app .vmark:hover{z-index:2}
+.sidlisko-pily-app .vmark.is-active{outline:3px solid var(--survey);outline-offset:1px;z-index:2}
+
+/* ---------- motívy ---------- */
+.sidlisko-pily-app .mchip{display:inline-block;width:10px;height:10px;border-radius:50%;
+  background:var(--mc,#8d939a);margin-right:7px;vertical-align:baseline}
