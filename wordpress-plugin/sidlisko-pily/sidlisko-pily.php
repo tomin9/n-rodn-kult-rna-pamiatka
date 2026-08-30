@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Sídlisko Píly – pasport budov
  * Description: Vloží interaktívny pasport budov, priečelí a výskytov sgrafít (georeferencovaná mapa cez Mapbox, dáta v Supabase) cez shortcode [sidlisko_pily].
- * Version: 2.6.0
+ * Version: 2.7.0
  * Author: Ars Preuge
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('SIDLISKO_PILY_VERSION', '2.6.0');
+define('SIDLISKO_PILY_VERSION', '2.7.0');
 
 function sidlisko_pily_enqueue_assets() {
     global $post;
@@ -44,8 +44,8 @@ function sidlisko_pily_shortcode() {
     ?>
     <div class="sidlisko-pily-app">
       <header>
-        <h1>Sídlisko Píly</h1>
-        <span class="sub">pasport budov a priečelí · georeferencovaná mapa (Mapbox)</span>
+        <h1><a href="https://www.novesidlisko.sk/nkp">Sídlisko Píly</a></h1>
+        <span class="sub">pasport budov a priečelí</span>
         <span class="spacer"></span>
         <button class="tool" data-tab="prehlad" aria-pressed="true">Prehľad</button>
         <button class="tool" data-tab="budovy" aria-pressed="false">Budovy</button>

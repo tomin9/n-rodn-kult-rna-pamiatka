@@ -27,6 +27,8 @@
   font-family:var(--sans);font-weight:700;font-size:19px;letter-spacing:.14em;
   text-transform:uppercase;margin:0;
 }
+.sidlisko-pily-app header h1 a{color:inherit;text-decoration:none}
+.sidlisko-pily-app header h1 a:hover{color:var(--survey)}
 .sidlisko-pily-app header .sub{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.04em}
 .sidlisko-pily-app header .spacer{flex:1}
 .sidlisko-pily-app .tool{
