@@ -226,7 +226,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, list:null}, addingVyskyt:null };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, list:null}, addingVyskyt:null, budovaTab:"zakladne" };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -369,6 +369,7 @@ function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
   const zmenaBudovy = budovaId !== S.route.budova;
+  if(zmenaBudovy) S.budovaTab = "zakladne";
   S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, list:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
@@ -435,6 +436,7 @@ window.addEventListener("hashchange", ()=>{
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
   const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, umelec:null, list:null};
   if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt || S.route.umelec || S.route.list){
+    if(want.budova !== S.route.budova) S.budovaTab = "zakladne";
     S.route = want; if(map && map.isStyleLoaded()) refreshMapSelection(); render();
   }
 });
@@ -667,9 +669,11 @@ function miniPlan(b, activeId){
 }
 function renderBudova(b){
   const totalVyskytov = b.priecelia.reduce((s,f)=>s+f.vyskyty.length,0);
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
+  const tab = S.budovaTab || "zakladne";
+  const tabBtn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${tab===key}">${esc(label)}</button>`;
+
+  const zakladneTab = `
     <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
-    <h3 class="sec">Základné údaje</h3>
     <table class="meta">
       ${fieldRow("Pôvodné označenie", b.oznacenie, "oznacenie")}
       ${fieldRow("Adresa", b.adresa, "adresa")}
@@ -680,7 +684,9 @@ function renderBudova(b){
     </table>
     ${b.umelecId ? `<p class="hint">Profil umelca: <a data-u="${esc(b.umelecId)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc((DATA.umelci.find(u=>u.id===b.umelecId)||{}).meno||"")}</a></p>` : ""}
     <h3 class="sec">Popis</h3>
-    <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>
+    <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>`;
+
+  const prieceliaTab = `
     <h3 class="sec">Priečelia <span class="kod">${totalVyskytov} výskytov</span></h3>
     ${miniPlan(b, null)}
     ${b.priecelia.length ? `<ul class="list">${b.priecelia.map(f=>`
@@ -688,14 +694,24 @@ function renderBudova(b){
         <span class="fname">${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
         <span class="fdir">${esc(f.smer)} · ${f.dlzka} m${f.vyzdoba?" · "+esc(f.vyzdoba):""} · ${f.vyskyty.length} výskytov</span>
       </button></li>`).join("")}</ul>`
-      : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}
+      : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
+
+  const podkladyTab = `
     <h3 class="sec">Podklady</h3>
     ${podkladyBlok(b.podklady, "b")}
     <div class="row" style="margin-top:8px">
       <button class="btn ghost" id="add-podklad">+ Podklad (odkaz)</button>
       <button class="btn ghost" id="upload-podklad-b">+ Nahrať súbor</button>
       <input type="file" id="upload-podklad-b-input" hidden>
+    </div>`;
+
+  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
+    <div class="row" style="margin-top:0">
+      ${tabBtn("zakladne","Základné údaje")}
+      ${tabBtn("priecelia","Priečelia")}
+      ${tabBtn("podklady","Podklady")}
     </div>
+    ${tab==="priecelia" ? prieceliaTab : tab==="podklady" ? podkladyTab : zakladneTab}
     <div class="row" style="margin-top:26px">
       <button class="btn warn" id="del-b">Zmazať dom</button>
     </div>
@@ -997,6 +1013,9 @@ function wire(b, f, v){
   panel.querySelectorAll("[data-u]").forEach(el=>{
     el.onclick = ()=> goUmelec(el.dataset.u);
     el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  panel.querySelectorAll("[data-btab]").forEach(el=>{
+    el.onclick = ()=>{ S.budovaTab = el.dataset.btab; render(); };
   });
   panel.querySelectorAll(".fhit-mini").forEach(el=>{ el.onclick = ()=> toggleEdge(b, +el.dataset.edge); });
   panel.querySelectorAll("[data-path]").forEach(el=>{
