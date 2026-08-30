@@ -1119,7 +1119,6 @@ function renderBudova(b){
     <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>` : `
     ${editToggle}
     <table class="meta">
-      ${viewRow("Budova", `<span class="kod">${esc(b.kod||b.id)}</span>`)}
       ${viewRow("Pôvodné označenie", esc(b.oznacenie))}
       ${viewRow("Adresa", esc(b.adresa))}
       ${viewRow("Rok výstavby", esc(b.rok))}
