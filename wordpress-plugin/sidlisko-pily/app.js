@@ -891,7 +891,7 @@ function renderBudova(b){
       }).join("")}${standaloneB.map(({f,v})=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">${facadeLabel(b,f)} · samostatné sgrafito</span>
+        <span class="fdir">${facadeLabel(b,f)} · bez motívu</span>
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}
   <p class="hint">Klikni na motív pre jeho detail a nahranie fotografie.</p>`;
@@ -946,7 +946,7 @@ function renderPriecelie(b, f, activeVid){
       }).join("")}${standalone.map(v=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">samostatné sgrafito</span>
+        <span class="fdir">bez motívu</span>
       </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
@@ -960,12 +960,13 @@ function renderPriecelie(b, f, activeVid){
     <input type="file" id="sp-upload-foto" accept="image/*" hidden>
     <div class="row">
       <button class="btn ghost" id="sp-btn-upload-foto">${f.fotoUrl?"Nahrať inú fotku":"Nahrať fotku priečelia"}</button>
-      ${f.fotoUrl ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>` : ""}
+      ${f.fotoUrl ? (DATA.motivy.length
+        ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>`
+        : `<span class="hint">Najprv pridaj motív do <a data-go="list:motivy" tabindex="0">katalógu motívov</a>.</span>`) : ""}
     </div>
     ${f.fotoUrl && adding ? `
     <div class="row" style="align-items:center">
       <select class="in" id="sp-adding-motiv" style="flex:1;min-width:160px">
-        <option value=""${!S.addingVyskyt.motivId?" selected":""}>— bez motívu —</option>
         ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
       </select>
     </div>
@@ -993,7 +994,7 @@ function wirePriecelie(b, f){
     if(S.addingVyskyt && S.addingVyskyt.prieceleId===f.id){
       S.addingVyskyt = null;
     } else {
-      S.addingVyskyt = { prieceleId: f.id, motivId: "" };
+      S.addingVyskyt = { prieceleId: f.id, motivId: DATA.motivy.length ? DATA.motivy[0].id : "" };
     }
     render();
   };
@@ -1045,13 +1046,9 @@ function renderVyskytDetail(b, f, v){
     </div>
     <h3 class="sec">Motív</h3>
     <select class="in" id="sp-vyskyt-motiv">
-      <option value=""${!v.motivId?" selected":""}>— samostatné sgrafito —</option>
+      ${!v.motivId ? `<option value="" selected disabled>— vyber motív —</option>` : ""}
       ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
     </select>
-    ${!v.motivId ? `
-    <h3 class="sec">Názov sgrafita</h3>
-    <input class="in" data-vpath="nazov" value="${esc(v.nazov)}" placeholder="Pomenuj toto sgrafito…">
-    ` : ""}
     <h3 class="sec">Údaje o výskyte</h3>
     <table class="meta">
       ${fieldRow3("Veľkosť", v.velkost, "velkost")}
