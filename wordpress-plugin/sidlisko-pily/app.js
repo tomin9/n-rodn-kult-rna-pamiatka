@@ -177,7 +177,11 @@ function syncPriecelia(b){
       }
       return {...s, edgeIndex: ei};
     })
-    .filter(s=> Number.isInteger(s.edgeIndex) && s.edgeIndex >= 0 && s.edgeIndex < b.poly.length)
+    .filter(s=>{
+      const ok = Number.isInteger(s.edgeIndex) && s.edgeIndex >= 0 && s.edgeIndex < b.poly.length;
+      if(!ok) console.warn("Priečelie vyradené (nesedí edgeIndex s tvarom budovy):", {budova: b.kod||b.id, priecelieId: s.id, edgeIndex: s.edgeIndex, pocetVrcholovPoly: b.poly.length});
+      return ok;
+    })
     .map(s=>{
       const e = edgeInfo(b.poly, s.edgeIndex);
       return {
