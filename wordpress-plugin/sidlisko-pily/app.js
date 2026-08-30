@@ -681,11 +681,19 @@ function miniPlan(b, activeId){
     <div class="legend">Klikni na stranu domu<br>a označíš ju ako<br>priečelie.<br><br>${b.priecelia.length} určených priečelí<br>skutočný kompas</div>
   </div>`;
 }
+function budovaTabsHtml(activeTab){
+  const btn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${activeTab===key}">${esc(label)}</button>`;
+  return `<div class="row" style="margin-top:0">
+    ${btn("zakladne","Základné údaje")}
+    ${btn("priecelia","Priečelia")}
+    ${btn("motivy","Motívy")}
+    ${btn("podklady","Podklady")}
+  </div>`;
+}
 function renderBudova(b){
   const totalVyskytov = b.priecelia.reduce((s,f)=>s+f.vyskyty.length,0);
   const tab = S.budovaTab || "zakladne";
   const editing = !!S.budovaEdit;
-  const tabBtn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${tab===key}">${esc(label)}</button>`;
   const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
     <a data-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
   </div>`;
@@ -724,9 +732,9 @@ function renderBudova(b){
   const prieceliaTab = `
     <h3 class="sec">Priečelia <span class="kod">${totalVyskytov} výskytov</span></h3>
     ${miniPlan(b, null)}
-    ${b.priecelia.length ? `<ul class="list">${b.priecelia.map(f=>`
+    ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
-        <span class="fname">${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
+        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
         <span class="fdir">${esc(f.smer)} · ${f.dlzka} m${f.vyzdoba?" · "+esc(f.vyzdoba):""} · ${f.vyskyty.length} výskytov</span>
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
@@ -753,12 +761,7 @@ function renderBudova(b){
     </div>`;
 
   panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
-    <div class="row" style="margin-top:0">
-      ${tabBtn("zakladne","Základné údaje")}
-      ${tabBtn("priecelia","Priečelia")}
-      ${tabBtn("motivy","Motívy")}
-      ${tabBtn("podklady","Podklady")}
-    </div>
+    ${budovaTabsHtml(tab)}
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
     <p class="hint">Zmeny sa priebežne ukladajú do databázy — vidí ich celý tím.</p>
   </div>`;
@@ -792,11 +795,7 @@ function renderPriecelie(b, f){
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
   panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:f.smer}]) + `<div class="pad">
-    <p class="eyebrow">Priečelie <span class="kod">${esc(b.kod||b.id)} / ${esc(f.id)}</span></p>
-    <input class="in" data-fpath="nazov" value="${esc(f.nazov)}" placeholder="${SMER_NAZOV[f.smer]} priečelie" style="font-family:var(--sans);font-size:24px;text-transform:uppercase">
-    <p class="muted" style="font-family:var(--mono);font-size:12px">${esc(b.nazov||b.adresa||b.kod)} · ${esc(f.smer)} · dĺžka ~${f.dlzka} m</p>
-    ${miniPlan(b, f.id)}
-
+    ${budovaTabsHtml("priecelia")}
     <h3 class="sec">Fotografia a výskyty sgrafít <span class="kod">${f.vyskyty.length}</span></h3>
     ${photoBlock(f, null, !!adding)}
     <div class="row">
@@ -811,36 +810,12 @@ function renderPriecelie(b, f){
         ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(m.nazov)}</option>`).join("")}
       </select>
     </div>
-    <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v prehľade sídliska.</p>
+    <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
     ` : ""}
 
     <h3 class="sec">Motívy na tomto priečelí</h3>
     ${summary}
 
-    <h3 class="sec">Údaje o priečelí</h3>
-    <table class="meta">
-      <tr><th>Orientácia</th><td>${esc(SMER_NAZOV[f.smer])} (${f.smer})</td></tr>
-      ${fieldRow2("Výtvarné dielo", f.vyzdoba, "vyzdoba")}
-      ${fieldRow2("Autor diela", f.autor, "autor")}
-      ${fieldRow2("Rok vzniku", f.rok, "rok")}
-      ${fieldRow2("Stav a ohrozenie", f.stav, "stav")}
-    </table>
-    <h3 class="sec">Popis</h3>
-    <textarea class="in" data-fpath="popis" placeholder="Popis priečelia, sgrafito, materiál, zásahy…">${esc(f.popis)}</textarea>
-    <h3 class="sec">Podklady k priečeliu</h3>
-    ${podkladyBlok(f.podklady, "f")}
-    <div class="row" style="margin-top:8px">
-      <button class="btn ghost" id="add-podklad-f">+ Podklad (odkaz)</button>
-      <button class="btn ghost" id="upload-podklad-f">+ Nahrať súbor</button>
-      <input type="file" id="upload-podklad-f-input" hidden>
-    </div>
-    <h3 class="sec">Ostatné priečelia</h3>
-    ${b.priecelia.length>1 ? `<ul class="list">${b.priecelia.filter(x=>x.id!==f.id).map(x=>`
-      <li><button class="fitem" data-b="${b.id}" data-f="${x.id}">
-        <span class="fname">${esc(x.nazov || (SMER_NAZOV[x.smer]+" priečelie"))}</span>
-        <span class="fdir">${esc(x.smer)} · ${x.vyskyty.length} výskytov</span>
-      </button></li>`).join("")}</ul>`
-      : `<div class="empty">Toto je zatiaľ jediné určené priečelie tohto domu.</div>`}
     <div class="row" style="margin-top:26px"><button class="btn warn" id="del-f">Zrušiť toto priečelie</button></div>
   </div>`;
   wire(b,f);
@@ -957,7 +932,7 @@ function renderUmelec(u){
     ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
       <li><span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov||"bez názvu")}</span>
         <span class="fdir">${countsAll[m.id]||0}× na sídlisku</span></li>`).join("")}</ul>`
-      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v prehľade sídliska.</div>`}
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v zozname motívov.</div>`}
 
     <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
     ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
@@ -994,9 +969,6 @@ function wireUmelec(u){
     deleteUmelecRemote(u.id);
     goUmelec(null);
   };
-}
-function fieldRow2(label,val,path){
-  return `<tr><th>${esc(label)}</th><td><input class="in" data-fpath="${path}" value="${esc(val)}"></td></tr>`;
 }
 function fieldRow3(label,val,path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-vpath="${path}" value="${esc(val)}"></td></tr>`;
@@ -1060,7 +1032,11 @@ function wire(b, f, v){
     el.onkeydown = e => { if(e.key==="Enter") el.click(); };
   });
   panel.querySelectorAll("[data-btab]").forEach(el=>{
-    el.onclick = ()=>{ S.budovaTab = el.dataset.btab; render(); };
+    el.onclick = ()=>{
+      S.budovaTab = el.dataset.btab;
+      if(S.route.priecelie || S.route.vyskyt) go(b.id, null, null);
+      else render();
+    };
   });
   panel.querySelectorAll("[data-edit-toggle]").forEach(el=>{
     el.onclick = ()=>{ S.budovaEdit = !S.budovaEdit; render(); };
