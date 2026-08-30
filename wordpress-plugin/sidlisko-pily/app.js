@@ -391,35 +391,40 @@ async function boot(){
              ["get","isFacade"], 3.5, 1.3],
            "line-dasharray":["case",["get","isFacade"],["literal",[1]],["literal",[1,1.6]]]}});
 
-  map.on("mousemove","buildings-fill", ()=> map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave","buildings-fill", ()=> map.getCanvas().style.cursor = "");
-  map.on("click","buildings-fill", e=>{
-    const id = e.features[0].properties.id;
-    go(id, null);
-  });
-  map.on("click", e=>{
-    const hits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
-    if(!hits.length) go(null, null);
-  });
-  map.on("mousemove","facades-hit", e=>{
-    map.getCanvas().style.cursor = "pointer";
-    const ei = e.features[0].properties.edgeIndex;
-    if(hoveredEdgeIndex !== ei){
-      hoveredEdgeIndex = ei;
-      if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+  function facadeHitAt(point){
+    const tol = 8;
+    const bbox = [[point.x-tol, point.y-tol],[point.x+tol, point.y+tol]];
+    const feats = map.queryRenderedFeatures(bbox, {layers:["facades-hit"]});
+    return feats.length ? feats[0] : null;
+  }
+  map.on("mousemove", e=>{
+    const b = DATA.budovy.find(x=>x.id===S.route.budova);
+    const facadeFeat = b ? facadeHitAt(e.point) : null;
+    if(facadeFeat){
+      map.getCanvas().style.cursor = "pointer";
+      const ei = facadeFeat.properties.edgeIndex;
+      if(hoveredEdgeIndex !== ei){
+        hoveredEdgeIndex = ei;
+        if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+      }
+      return;
     }
-  });
-  map.on("mouseleave","facades-hit", ()=>{
-    map.getCanvas().style.cursor = "";
     if(hoveredEdgeIndex !== null){
       hoveredEdgeIndex = null;
       if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
     }
+    const bldHits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
+    map.getCanvas().style.cursor = bldHits.length ? "pointer" : "";
   });
-  map.on("click","facades-hit", e=>{
+  map.on("click", e=>{
     const b = DATA.budovy.find(x=>x.id===S.route.budova);
-    if(!b) return;
-    toggleEdge(b, e.features[0].properties.edgeIndex);
+    if(b){
+      const facadeFeat = facadeHitAt(e.point);
+      if(facadeFeat){ toggleEdge(b, facadeFeat.properties.edgeIndex); return; }
+    }
+    const bldHits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
+    if(bldHits.length){ go(bldHits[0].properties.id, null); return; }
+    go(null, null);
   });
 
   render(); note();
