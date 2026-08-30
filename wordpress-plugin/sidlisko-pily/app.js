@@ -751,6 +751,11 @@ function facadeLabel(b, f){
   const i = b.priecelia.indexOf(f);
   return "P" + (i>=0 ? i+1 : "?");
 }
+function dieloKod(b, f, v){
+  const fi = b.priecelia.indexOf(f);
+  const vi = f.vyskyty.indexOf(v);
+  return `${b.kod||b.id}.${fi>=0?fi+1:"?"}.${vi>=0?vi+1:"?"}`;
+}
 function vyskytTitle(v){
   const m = DATA.motivy.find(x=>x.id===v.motivId);
   if(m) return m.nazov || "bez názvu";
@@ -1005,7 +1010,7 @@ function renderDielaList(){
     const label = m ? (m.nazov || "bez názvu") : (v.nazov ? v.nazov+" — bez motívu" : "bez motívu");
     return `<li><button class="fitem" data-dielo="${esc(v.id)}">
       <span class="fname"${!m?' style="color:var(--survey)"':""}>${esc(label)}</span>
-      <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}${u?" · "+esc(u.meno):""}</span>
+      <span class="fdir">${esc(dieloKod(b,f,v))}${u?" · "+esc(u.meno):""}</span>
     </button></li>`;
   };
 
@@ -1155,7 +1160,7 @@ function renderBudova(b){
       }).join("")}${standaloneB.map(({f,v})=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">${facadeLabel(b,f)} · bez motívu</span>
+        <span class="fdir">${esc(dieloKod(b,f,v))} · bez motívu</span>
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}
   <p class="hint">Klikni na motív pre jeho detail a nahranie fotografie.</p>`;
@@ -1211,7 +1216,7 @@ function renderPriecelie(b, f, activeVid){
       }).join("")}${standalone.map(v=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">bez motívu</span>
+        <span class="fdir">${esc(dieloKod(b,f,v))} · bez motívu</span>
       </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
@@ -1364,7 +1369,7 @@ function renderDieloDetailPanel(b, f, v){
   const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
   const motivyOpts = motivyForBudova(b, v.motivId);
   detailPanel.innerHTML = `<div class="pad">
-    <p class="eyebrow">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</p>
+    <p class="eyebrow">${esc(dieloKod(b,f,v))}</p>
     <h2 class="title" style="font-size:22px">${m ? esc(m.nazov || "bez názvu") : "Bez motívu"}</h2>
     ${u ? `<p class="lead" style="font-size:14px">${esc(u.meno)}</p>` : ""}
     ${photoBlock(f, v.id, false)}
@@ -1438,11 +1443,10 @@ function renderMotivDetailPanel(m, ctx){
 
     <h3 class="sec">Výskyty <span class="kod">${st.diel}</span></h3>
     <p class="hint" style="margin-top:0">${st.budov} domov · ${st.priecelia} priečelí</p>
-    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v},i)=>{
-        const fLabel = facadeLabel(b, f);
+    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v})=>{
         return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
-          <span class="fname">${esc(b.kod||b.id)} / ${esc(fLabel)}</span>
-          <span class="fdir">#${i+1}</span>
+          <span class="fname">${esc(dieloKod(b,f,v))}</span>
+          <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</span>
         </button></li>`;
       }).join("")}</ul>`
       : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt.</div>`}
@@ -1521,11 +1525,10 @@ function renderMotiv(m){
     <textarea class="in" id="sp-motiv-popis" placeholder="Technika, rozmer, farebnosť…">${esc(m.popis)}</textarea>
 
     <h3 class="sec">Výskyty na sídlisku <span class="kod">${vyskyty.length}</span></h3>
-    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v},i)=>{
-        const fLabel = facadeLabel(b, f);
+    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v})=>{
         return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
-          <span class="fname">${esc(b.kod||b.id)} / ${esc(fLabel)}</span>
-          <span class="fdir">#${i+1}</span>
+          <span class="fname">${esc(dieloKod(b,f,v))}</span>
+          <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</span>
         </button></li>`;
       }).join("")}</ul>`
       : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt. Označ ho na fotke priečelia.</div>`}
