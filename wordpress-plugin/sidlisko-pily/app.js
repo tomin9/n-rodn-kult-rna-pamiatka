@@ -437,6 +437,7 @@ async function boot(){
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   const muc = location.hash.match(/^#\/umelci\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
+  const mdi = location.hash.match(/^#\/diela\/([^/]+)/);
   const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
   const mbu = location.hash.match(/^#\/budova\/([^/]+)\/umelec\/([^/]+)/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
@@ -444,6 +445,7 @@ async function boot(){
   else if(mm) goMotiv(mm[1]);
   else if(muc){ goList("umelci"); goUmelec(muc[1]); }
   else if(mu) goUmelec(mu[1]);
+  else if(mdi){ goList("diela"); goDielo(mdi[1]); }
   else if(mbu){ go(mbu[1], null, null, {noFit:true}); goUmelec(mbu[2]); }
   else if(ml) goList(ml[1]);
   else if(m && m[2] && m[3]) goPrieceliaMotiv(m[1], m[2], m[3]);
@@ -534,6 +536,15 @@ function goUmelec(umelecId){
   render();
   panel.scrollTop = 0;
 }
+function goDielo(vyskytId){
+  const ctx = findVyskytById(vyskytId);
+  if(!ctx) return;
+  if(vyskytId !== S.route.vyskyt){ const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:ctx.b.id, priecelie:ctx.f.id, vyskyt:vyskytId, umelec:null, motiv:null, list:"diela"};
+  try{ location.hash = "#/diela/"+vyskytId; }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
+}
 function goList(name){
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:name||null};
   try{ location.hash = name ? ("#/"+name) : "#/"; }catch(_){}
@@ -542,10 +553,10 @@ function goList(name){
   panel.scrollTop = 0;
 }
 function activeTab(){
+  if(S.route.list==="diela") return "diela";
   if(S.route.list==="budovy" || S.route.budova) return "budovy";
   if(S.route.list==="umelci" || S.route.umelec) return "umelci";
   if(S.route.list==="motivy" || S.route.motiv) return "motivy";
-  if(S.route.list==="diela") return "diela";
   return "prehlad";
 }
 function updateTabs(){
@@ -589,6 +600,17 @@ window.addEventListener("hashchange", ()=>{
     if(S.route.umelec !== mu[1]){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:mu[1], motiv:null, list:null};
       if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
+  const mdi = location.hash.match(/^#\/diela\/([^/]+)/);
+  if(mdi){
+    if(S.route.vyskyt !== mdi[1] || S.route.list !== "diela"){
+      const ctx = findVyskytById(mdi[1]);
+      if(ctx){
+        S.route = {budova:ctx.b.id, priecelie:ctx.f.id, vyskyt:mdi[1], umelec:null, motiv:null, list:"diela"};
+        if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+      }
     }
     return;
   }
@@ -643,6 +665,15 @@ function render(){
       appRoot.classList.add("has-detail");
       renderUmelciList();
       renderUmelecDetailPanel(u);
+      handled = true;
+    }
+  }
+  if(!handled && S.route.list==="diela" && S.route.vyskyt){
+    const ctx = findVyskytById(S.route.vyskyt);
+    if(ctx){
+      appRoot.classList.add("has-detail");
+      renderDielaList();
+      renderDieloDetailPanel(ctx.b, ctx.f, ctx.v);
       handled = true;
     }
   }
@@ -970,8 +1001,8 @@ function renderDielaList(){
   const itemHtml = ({b,f,v})=>{
     const m = v.motivId ? DATA.motivy.find(x=>x.id===v.motivId) : null;
     const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
-    const label = m ? motivLabel(m) : (v.nazov ? v.nazov+" — bez motívu" : "bez motívu");
-    return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
+    const label = m ? (m.nazov || "bez názvu") : (v.nazov ? v.nazov+" — bez motívu" : "bez motívu");
+    return `<li><button class="fitem" data-dielo="${esc(v.id)}">
       <span class="fname"${!m?' style="color:var(--survey)"':""}>${esc(label)}</span>
       <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}${u?" · "+esc(u.meno):""}</span>
     </button></li>`;
@@ -984,6 +1015,21 @@ function renderDielaList(){
     ${rows.length ? `<ul class="list">${rows.map(itemHtml).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne výskyty.</div>`}
   </div>`;
   wire();
+  wireDielaList();
+}
+function wireDielaList(){
+  panel.querySelectorAll("[data-dielo]").forEach(el=>{
+    el.onclick = ()=> goDielo(el.dataset.dielo);
+  });
+}
+function findVyskytById(vyskytId){
+  for(const b of DATA.budovy){
+    for(const f of b.priecelia){
+      const v = f.vyskyty.find(x=>x.id===vyskytId);
+      if(v) return {b, f, v};
+    }
+  }
+  return null;
 }
 function fieldRow(label, val, path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-path="${path}" value="${esc(val)}"></td></tr>`;
@@ -1310,6 +1356,39 @@ function wireAssignMotivPanel(b, f, v){
     f.vyskyty = f.vyskyty.filter(x=>x.id!==v.id);
     deleteVyskytRemote(v.id);
     go(b.id, f.id, null);
+  };
+}
+function renderDieloDetailPanel(b, f, v){
+  const m = v.motivId ? DATA.motivy.find(x=>x.id===v.motivId) : null;
+  const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
+  const motivyOpts = motivyForBudova(b, v.motivId);
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</p>
+    <h2 class="title" style="font-size:22px">${m ? esc(m.nazov || "bez názvu") : "Bez motívu"}</h2>
+    ${u ? `<p class="lead" style="font-size:14px">${esc(u.meno)}</p>` : ""}
+    ${photoBlock(f, v.id, false)}
+    <h3 class="sec">${m ? "Zmeniť priradenie motívu" : "Priradiť motív"}</h3>
+    ${motivyOpts.length
+      ? `<select class="in" id="sp-dielo-motiv">
+          ${!m ? `<option value="" selected disabled>— vyber motív —</option>` : ""}
+          ${motivyOpts.map(mo=>`<option value="${esc(mo.id)}"${mo.id===v.motivId?" selected":""}>${esc(mo.nazov||"bez názvu")}</option>`).join("")}
+        </select>`
+      : `<p class="hint">Katalóg motívov je zatiaľ prázdny. Najprv pridaj motív v zozname Motívy.</p>`}
+  </div>`;
+  wireDieloDetailPanel(b, f, v);
+}
+function wireDieloDetailPanel(b, f, v){
+  const wrap = detailPanel.querySelector("#sp-photo");
+  if(wrap){
+    wrap.querySelectorAll(".vmark").forEach(dot=>{
+      dot.onclick = (e)=>{ e.stopPropagation(); goDielo(dot.dataset.v); };
+    });
+  }
+  const sel = detailPanel.querySelector("#sp-dielo-motiv");
+  if(sel) sel.onchange = ()=>{
+    v.motivId = sel.value;
+    saveVyskyt(v, f.id);
+    render();
   };
 }
 function renderMotivDetailPanel(m, ctx){
