@@ -62,6 +62,12 @@
 }
 
 .sidlisko-pily-app #sp-panel{overflow-y:auto;background:var(--paper);padding:0 0 60px}
+.sidlisko-pily-app #sp-detail{display:none;overflow-y:auto;background:var(--paper);padding:0 0 60px;border-left:1px solid var(--line)}
+.sidlisko-pily-app.has-detail main{grid-template-columns:2fr 1fr 1fr}
+.sidlisko-pily-app.has-detail #sp-detail{display:block}
+@media (max-width:900px){
+  .sidlisko-pily-app.has-detail main{grid-template-columns:1fr;grid-template-rows:52vh 1fr 1fr}
+}
 .sidlisko-pily-app .pad{padding:20px}
 .sidlisko-pily-app .crumb{
   display:flex;gap:8px;align-items:center;flex-wrap:wrap;
