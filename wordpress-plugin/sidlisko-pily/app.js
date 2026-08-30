@@ -222,7 +222,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, vyskytEdit:false, motivyEdit:false, motivDetailEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -347,12 +347,13 @@ async function boot(){
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
   const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
-  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
+  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
   if(mml) goMotivDetail(mml[1]);
   else if(mm) goMotiv(mm[1]);
   else if(mu) goUmelec(mu[1]);
   else if(ml) goList(ml[1]);
-  else if(m) go(m[1], m[2]||null, m[3]||null, {noFit:true});
+  else if(m && m[2] && m[3]) goPrieceliaMotiv(m[1], m[2], m[3]);
+  else if(m) go(m[1], m[2]||null, null, {noFit:true});
   });
 }
 boot();
@@ -368,17 +369,24 @@ function refreshMapSelection(){
 function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
+  let motivId = null;
+  if(vyskytId){
+    const b0 = DATA.budovy.find(x=>x.id===budovaId);
+    const f0 = b0 && b0.priecelia.find(x=>x.id===prieceleId);
+    const v0 = f0 && f0.vyskyty.find(x=>x.id===vyskytId);
+    motivId = v0 ? (v0.motivId || null) : null;
+  }
   const zmenaBudovy = budovaId !== S.route.budova;
   const zmenaPriecelia = prieceleId !== S.route.priecelie;
-  const zmenaVyskytu = vyskytId !== S.route.vyskyt;
+  const zmenaMotivu = motivId !== S.route.motiv;
   if(zmenaBudovy){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
   if(zmenaPriecelia) S.priecelieEdit = false;
-  if(zmenaVyskytu){ S.vyskytEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
-  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, list:null};
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, motiv:motivId, list:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
     if(budovaId && prieceleId) h += "/prieceli/"+prieceleId;
-    if(budovaId && prieceleId && vyskytId) h += "/vyskyt/"+vyskytId;
+    if(budovaId && prieceleId && motivId) h += "/motiv/"+motivId;
     location.hash = h;
   }catch(_){}
   if(map && map.isStyleLoaded()) refreshMapSelection();
@@ -388,6 +396,18 @@ function go(budovaId, prieceleId, vyskytId, opts){
     if(b) map.fitBounds(bboxLL(b.poly), {padding:140, maxZoom:19, duration:600});
   }
   panel.scrollTop = 0;
+}
+function goPrieceliaMotiv(budovaId, prieceleId, motivId){
+  const zmenaMotivu = motivId !== S.route.motiv || S.route.vyskyt;
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:null, umelec:null, motiv:motivId||null, list:null};
+  try{
+    let h = "#/budova/"+budovaId+"/prieceli/"+prieceleId;
+    if(motivId) h += "/motiv/"+motivId;
+    location.hash = h;
+  }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
 }
 function goMotiv(motivId){
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:motivId||null, list:null};
@@ -468,9 +488,9 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
-  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, umelec:null, list:null};
-  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt || S.route.umelec || S.route.list){
+  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
+  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:null, motiv:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, motiv:null, umelec:null, list:null};
+  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.motiv!==S.route.motiv || S.route.umelec || S.route.list){
     if(want.budova !== S.route.budova){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
     S.route = want; if(map && map.isStyleLoaded()) refreshMapSelection(); render();
   }
@@ -487,18 +507,12 @@ document.addEventListener("keydown", e=>{
 const detailPanel = document.getElementById("sp-detail");
 function render(){
   let handled = false;
-  if(S.route.motiv){
+  if(S.route.motiv && S.route.list==="motivy"){
     const m = DATA.motivy.find(x=>x.id===S.route.motiv);
     if(m){
-      if(S.route.list==="motivy"){
-        appRoot.classList.add("has-detail");
-        renderMotivyList();
-        renderMotivDetailPanel(m);
-      } else {
-        appRoot.classList.remove("has-detail");
-        detailPanel.innerHTML="";
-        renderMotiv(m);
-      }
+      appRoot.classList.add("has-detail");
+      renderMotivyList();
+      renderMotivDetailPanel(m);
       handled = true;
     }
   }
@@ -512,11 +526,11 @@ function render(){
       const f = b.priecelia.find(x=>x.id===S.route.priecelie);
       if(!f){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b); }
       else {
-        const v = f.vyskyty.find(x=>x.id===S.route.vyskyt);
-        if(v){
+        const m = S.route.motiv ? DATA.motivy.find(x=>x.id===S.route.motiv) : null;
+        if(m){
           appRoot.classList.add("has-detail");
-          renderPriecelie(b, f, v.id);
-          renderVyskytDetail(b, f, v);
+          renderPriecelie(b, f, S.route.vyskyt||null);
+          renderMotivDetailPanel(m);
         } else {
           appRoot.classList.remove("has-detail");
           detailPanel.innerHTML="";
@@ -525,6 +539,10 @@ function render(){
       }
       handled = true;
     }
+  }
+  if(!handled && S.route.motiv){
+    const m = DATA.motivy.find(x=>x.id===S.route.motiv);
+    if(m){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderMotiv(m); handled = true; }
   }
   if(!handled){
     appRoot.classList.remove("has-detail");
@@ -1025,93 +1043,9 @@ function wirePriecelie(b, f){
       dot.onclick = (e)=>{ e.stopPropagation(); go(b.id, f.id, dot.dataset.v); };
     });
   }
-}
-function renderVyskytDetail(b, f, v){
-  const editing = !!S.vyskytEdit;
-  const title = vyskytTitle(v);
-  const m = DATA.motivy.find(x=>x.id===v.motivId);
-
-  detailPanel.innerHTML = `<div class="pad">
-    <h2 class="title" style="font-size:22px">${esc(title)}</h2>
-    ${v.fotoUrl
-      ? `<div class="photo-wrap" style="margin-top:8px"><img src="${esc(v.fotoUrl)}" alt="Fotografia diela"></div>`
-      : `<div class="empty">Zatiaľ žiadna fotografia diela.</div>`}
-    <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
-      <a data-vyskyt-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
-    </div>
-    ${editing ? `
-    <input type="file" id="sp-upload-vyskyt-foto" accept="image/*" hidden>
-    <div class="row">
-      <button class="btn ghost" id="sp-btn-upload-vyskyt-foto">${v.fotoUrl?"Nahrať inú fotku":"Nahrať fotku diela"}</button>
-    </div>
-    <h3 class="sec">Motív</h3>
-    <select class="in" id="sp-vyskyt-motiv">
-      ${!v.motivId ? `<option value="" selected disabled>— vyber motív —</option>` : ""}
-      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
-    </select>
-    <h3 class="sec">Údaje o výskyte</h3>
-    <table class="meta">
-      ${fieldRow3("Veľkosť", v.velkost, "velkost")}
-      ${fieldRow3("Počet vrstiev", v.vrstvy, "vrstvy")}
-      ${fieldRow3("Stav", v.stav, "stav")}
-    </table>
-    <h3 class="sec">Popis</h3>
-    <textarea class="in" data-vpath="popis" placeholder="Popis, technika, farebnosť, poškodenie…">${esc(v.popis)}</textarea>
-    <h3 class="sec">Podklady</h3>
-    ${podkladyBlok(v.podklady, "v")}
-    <div class="row" style="margin-top:8px">
-      <button class="btn ghost" id="add-podklad-v">+ Podklad (odkaz)</button>
-      <button class="btn ghost" id="upload-podklad-v">+ Nahrať súbor</button>
-      <input type="file" id="upload-podklad-v-input" hidden>
-    </div>
-    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-v">Zrušiť tento výskyt</button></div>
-    ` : ""}
-  </div>`;
-  wireVyskytDetail(b, f, v);
-}
-function wireVyskytDetail(b, f, v){
-  detailPanel.querySelectorAll("[data-vyskyt-edit]").forEach(el=>{
-    el.onclick = ()=>{ S.vyskytEdit = !S.vyskytEdit; renderVyskytDetail(b, f, v); };
-    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  panel.querySelectorAll("[data-mid]").forEach(el=>{
+    if(el.tagName==="BUTTON") el.onclick = ()=> goPrieceliaMotiv(b.id, f.id, el.dataset.mid);
   });
-  wireUpload(
-    detailPanel.querySelector("#sp-btn-upload-vyskyt-foto"),
-    detailPanel.querySelector("#sp-upload-vyskyt-foto"),
-    async (file)=>{ const url = await uploadToStorage(file); v.fotoUrl = url; saveVyskyt(v, f.id); renderVyskytDetail(b, f, v); }
-  );
-  const motivSel = detailPanel.querySelector("#sp-vyskyt-motiv");
-  if(motivSel) motivSel.onchange = ()=>{ v.motivId = motivSel.value; saveVyskyt(v, f.id); renderVyskytDetail(b, f, v); };
-  detailPanel.querySelectorAll("[data-vpath]").forEach(el=>{
-    el.oninput = ()=>{ v[el.dataset.vpath] = el.value; saveVyskytDebounced(v.id, v, f.id); };
-  });
-  detailPanel.querySelectorAll("[data-pk]").forEach(el=>{
-    el.oninput = ()=>{
-      const parts = el.dataset.pk.split("|");
-      v.podklady[+parts[1]][parts[2]] = el.value;
-      saveVyskytDebounced(v.id, v, f.id);
-    };
-  });
-  detailPanel.querySelectorAll("[data-pk-del]").forEach(el=>{
-    el.onclick = ()=>{
-      const parts = el.dataset.pkDel.split("|");
-      v.podklady.splice(+parts[1], 1);
-      saveVyskyt(v, f.id);
-      renderVyskytDetail(b, f, v);
-    };
-  });
-  const apv = detailPanel.querySelector("#add-podklad-v");
-  if(apv) apv.onclick = ()=>{ v.podklady.push({typ:"foto",nazov:"",url:""}); saveVyskyt(v, f.id); renderVyskytDetail(b, f, v); };
-  wireUpload(detailPanel.querySelector("#upload-podklad-v"), detailPanel.querySelector("#upload-podklad-v-input"), async (file)=>{
-    const url = await uploadToStorage(file);
-    v.podklady.push({typ:"foto", nazov:file.name, url});
-    saveVyskyt(v, f.id); renderVyskytDetail(b, f, v);
-  });
-  const dv = detailPanel.querySelector("#del-v");
-  if(dv) dv.onclick = ()=>{
-    f.vyskyty = f.vyskyty.filter(x=>x.id!==v.id);
-    deleteVyskytRemote(v.id);
-    go(b.id, f.id, null);
-  };
 }
 function renderMotivDetailPanel(m){
   const editing = !!S.motivDetailEdit;
