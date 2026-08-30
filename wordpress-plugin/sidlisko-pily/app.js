@@ -473,6 +473,9 @@ function render(){
   }
   updateTabs();
 }
+function budovaLabel(b){
+  return b.nazov || b.adresa || b.kod || b.id;
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -517,11 +520,14 @@ function renderBudovyList(){
   panel.innerHTML = crumb([{t:"budovy"}]) + `<div class="pad">
     <p class="eyebrow">Zoznam</p>
     <h2 class="title">Budovy <span class="kod">${n}</span></h2>
-    ${n ? `<ul class="list">${DATA.budovy.map(b=>`
-      <li><button class="fitem" data-b="${b.id}">
-        <span class="fname">${esc(b.nazov || b.adresa || "bez názvu")}</span>
-        <span class="fdir">${esc(b.kod)} · ${b.priecelia.length} priečelí</span>
-      </button></li>`).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne domy.</div>`}
+    ${n ? `<ul class="list">${DATA.budovy.map(b=>{
+        const label = budovaLabel(b);
+        const kodInFdir = label !== (b.kod||b.id);
+        return `<li><button class="fitem" data-b="${b.id}">
+        <span class="fname">${esc(label)}</span>
+        <span class="fdir">${kodInFdir?esc(b.kod)+" · ":""}${b.priecelia.length} priečelí</span>
+      </button></li>`;
+      }).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne domy.</div>`}
   </div>`;
   wire();
 }
@@ -893,11 +899,14 @@ function renderUmelec(u){
       : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v prehľade sídliska.</div>`}
 
     <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
-    ${budovyU.length ? `<ul class="list">${budovyU.map(b=>`
-      <li><button class="fitem" data-b="${esc(b.id)}">
-        <span class="fname">${esc(b.nazov || b.adresa || "bez názvu")}</span>
-        <span class="fdir">${esc(b.kod)}</span>
-      </button></li>`).join("")}</ul>`
+    ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
+        const label = budovaLabel(b);
+        const kodInFdir = label !== (b.kod||b.id);
+        return `<li><button class="fitem" data-b="${esc(b.id)}">
+        <span class="fname">${esc(label)}</span>
+        <span class="fdir">${kodInFdir?esc(b.kod):`${b.priecelia.length} priečelí`}</span>
+      </button></li>`;
+      }).join("")}</ul>`
       : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
 
     <div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>
