@@ -373,8 +373,11 @@ async function boot(){
 
   map.addLayer({id:"facades-hit", type:"line", source:"facades",
     paint:{"line-width":18, "line-opacity":0}});
+  map.addLayer({id:"facades-active-halo", type:"line", source:"facades",
+    filter:["==",["get","active"],true],
+    paint:{"line-color":"#f2c230", "line-width":16, "line-opacity":0.45, "line-blur":6}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
-    paint:{"line-color":["case",["any",["get","active"],["get","isFacade"]],"#d0342c","#b9b6ae"],
+    paint:{"line-color":["case",["get","active"],"#f2c230",["get","isFacade"],"#d0342c","#b9b6ae"],
            "line-width":["case",["get","active"],5,["get","isFacade"],3.5,1.3],
            "line-dasharray":["case",["get","isFacade"],["literal",[1]],["literal",[1,1.6]]]}});
 
