@@ -41,7 +41,7 @@ async function loadFromSupabase(){
       autor: f.autor||"", rok: f.rok||"", stav: f.stav||"", podklady: f.podklady||[],
       fotoUrl: f.foto_url||"",
       vyskyty: (vyskytyRows||[]).filter(v=>v.priecelie_id===f.id).map(v=>({
-        id: v.id, motivId: v.motiv_id||"", x: v.x, y: v.y,
+        id: v.id, motivId: v.motiv_id||"", nazov: v.nazov||"", x: v.x, y: v.y,
         velkost: v.velkost||"", vrstvy: v.vrstvy||"", stav: v.stav||"",
         popis: v.popis||"", podklady: v.podklady||[]
       }))
@@ -67,7 +67,7 @@ function umelecRow(u){
   return { id:u.id, meno:u.meno, popis:u.popis, updated_at:new Date().toISOString() };
 }
 function vyskytRow(v, prieceleId){
-  return { id:v.id, priecelie_id:prieceleId, motiv_id:v.motivId||null, x:v.x, y:v.y,
+  return { id:v.id, priecelie_id:prieceleId, motiv_id:v.motivId||null, nazov:v.nazov, x:v.x, y:v.y,
     velkost:v.velkost, vrstvy:v.vrstvy, stav:v.stav, popis:v.popis, podklady:v.podklady,
     updated_at:new Date().toISOString() };
 }
@@ -483,6 +483,15 @@ function budovaStats(b){
   }));
   return { priecelia: b.priecelia.length, motivov: motivy.size, diel };
 }
+function facadeLabel(b, f){
+  const i = b.priecelia.indexOf(f);
+  return "P" + (i>=0 ? i+1 : "?");
+}
+function vyskytTitle(v){
+  const m = DATA.motivy.find(x=>x.id===v.motivId);
+  if(m) return m.nazov || "bez názvu";
+  return v.nazov || "bez názvu";
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -501,14 +510,6 @@ function motivCountsAll(){
     const k = v.motivId || "";
     counts[k] = (counts[k]||0)+1;
   })));
-  return counts;
-}
-function motivCountsBudova(b){
-  const counts = {};
-  b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
-    const k = v.motivId || "";
-    counts[k] = (counts[k]||0)+1;
-  }));
   return counts;
 }
 function renderPrehlad(){
@@ -739,17 +740,24 @@ function renderBudova(b){
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
 
-  const motivBCounts = motivCountsBudova(b);
-  const motivBKeys = Object.keys(motivBCounts).filter(k=>k);
-  const bezMotivuB = motivBCounts[""] || 0;
+  const groupedB = {};
+  const standaloneB = [];
+  b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId) groupedB[v.motivId] = (groupedB[v.motivId]||0)+1;
+    else standaloneB.push({f, v});
+  }));
+  const groupedBKeys = Object.keys(groupedB);
   const motivyTab = `
-    <h3 class="sec">Motívy na budove <span class="kod">${motivBKeys.length}</span></h3>
-    ${motivBKeys.length ? `<ul class="list">${motivBKeys.map(mid=>{
+    <h3 class="sec">Motívy na budove <span class="kod">${groupedBKeys.length + standaloneB.length}</span></h3>
+    ${(groupedBKeys.length || standaloneB.length) ? `<ul class="list">${groupedBKeys.map(mid=>{
         const m = DATA.motivy.find(x=>x.id===mid);
-        return `<li><span style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:"neznámy motív")}</span><span class="fdir">${motivBCounts[mid]}×</span></li>`;
-      }).join("")}</ul>`
-      : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}
-    ${bezMotivuB ? `<p class="hint">${bezMotivuB}× výskyt na tejto budove zatiaľ bez priradeného motívu.</p>` : ""}`;
+        return `<li><span style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:"neznámy motív")}</span><span class="fdir">${groupedB[mid]}×</span></li>`;
+      }).join("")}${standaloneB.map(({f,v})=>`
+      <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
+        <span class="fname">${esc(vyskytTitle(v))}</span>
+        <span class="fdir">${facadeLabel(b,f)} · samostatné sgrafito</span>
+      </button></li>`).join("")}</ul>`
+      : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}`;
 
   const podkladyTab = `
     <h3 class="sec">Podklady</h3>
@@ -784,17 +792,25 @@ function photoBlock(f, activeVyskytId, addingMode){
 }
 function renderPriecelie(b, f){
   const adding = S.addingVyskyt && S.addingVyskyt.prieceleId===f.id;
-  const motivCounts = {};
-  f.vyskyty.forEach(v=>{ const k=v.motivId||""; motivCounts[k]=(motivCounts[k]||0)+1; });
-  const motivKeys = Object.keys(motivCounts);
-  const summary = motivKeys.length
-    ? `<ul class="list">${motivKeys.map(mid=>{
+  const grouped = {};
+  const standalone = [];
+  f.vyskyty.forEach(v=>{
+    if(v.motivId) grouped[v.motivId] = (grouped[v.motivId]||0)+1;
+    else standalone.push(v);
+  });
+  const groupedKeys = Object.keys(grouped);
+  const summary = (groupedKeys.length || standalone.length)
+    ? `<ul class="list">${groupedKeys.map(mid=>{
         const m = DATA.motivy.find(x=>x.id===mid);
-        return `<li><span><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:'bez motívu')}</span><span class="fdir">${motivCounts[mid]}×</span></li>`;
-      }).join("")}</ul>`
+        return `<li><span><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:'neznámy motív')}</span><span class="fdir">${grouped[mid]}×</span></li>`;
+      }).join("")}${standalone.map(v=>`
+      <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
+        <span class="fname">${esc(vyskytTitle(v))}</span>
+        <span class="fdir">samostatné sgrafito</span>
+      </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:f.smer}]) + `<div class="pad">
+  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:facadeLabel(b,f)}]) + `<div class="pad">
     ${budovaTabsHtml("priecelia")}
     <h3 class="sec">Fotografia a výskyty sgrafít <span class="kod">${f.vyskyty.length}</span></h3>
     ${photoBlock(f, null, !!adding)}
@@ -854,7 +870,7 @@ function wirePriecelie(b, f){
       const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
       const nv = {
         id: "v"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-        motivId: S.addingVyskyt.motivId || "",
+        motivId: S.addingVyskyt.motivId || "", nazov:"",
         x, y, velkost:"", vrstvy:"", stav:"", popis:"", podklady:[]
       };
       f.vyskyty.push(nv);
@@ -869,17 +885,23 @@ function wirePriecelie(b, f){
 function renderVyskyt(b, f, v){
   const idx = f.vyskyty.indexOf(v);
   const m = DATA.motivy.find(x=>x.id===v.motivId);
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:f.smer, go:b.id+"|"+f.id},{t:"výskyt #"+(idx+1)}]) + `<div class="pad">
-    <p class="eyebrow">Výskyt sgrafita <span class="kod">${esc(b.kod||b.id)} / ${esc(f.smer)} / #${idx+1}</span></p>
-    <h2 class="title" style="font-size:22px">${esc(m?m.nazov:"bez motívu")}</h2>
+  const title = vyskytTitle(v);
+  const fLabel = facadeLabel(b, f);
+  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:fLabel, go:b.id+"|"+f.id},{t:title}]) + `<div class="pad">
+    <p class="eyebrow">Výskyt sgrafita <span class="kod">${esc(b.kod||b.id)} / ${esc(fLabel)} / #${idx+1}</span></p>
+    <h2 class="title" style="font-size:22px">${esc(title)}</h2>
 
     ${photoBlock(f, v.id, false)}
 
     <h3 class="sec">Motív</h3>
     <select class="in" id="sp-vyskyt-motiv">
-      <option value=""${!v.motivId?" selected":""}>— bez motívu —</option>
+      <option value=""${!v.motivId?" selected":""}>— samostatné sgrafito (nie je súčasťou opakovaného motívu) —</option>
       ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(mo.nazov)}</option>`).join("")}
     </select>
+    ${!v.motivId ? `
+    <h3 class="sec">Názov sgrafita</h3>
+    <input class="in" data-vpath="nazov" value="${esc(v.nazov)}" placeholder="Pomenuj toto sgrafito…">
+    ` : ""}
     <p class="hint">Nový motív do katalógu pridáš v <a data-go="list:motivy" tabindex="0">zozname motívov</a>.</p>
 
     <h3 class="sec">Údaje o výskyte</h3>
