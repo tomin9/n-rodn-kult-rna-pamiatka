@@ -612,11 +612,11 @@ function render(){
       if(!f){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b); }
       else {
         const m = S.route.motiv ? DATA.motivy.find(x=>x.id===S.route.motiv) : null;
-        const v = (!m && S.route.vyskyt) ? f.vyskyty.find(x=>x.id===S.route.vyskyt) : null;
+        const v = S.route.vyskyt ? f.vyskyty.find(x=>x.id===S.route.vyskyt) : null;
         if(m){
           appRoot.classList.add("has-detail");
           renderPriecelie(b, f, S.route.vyskyt||null);
-          renderMotivDetailPanel(m);
+          renderMotivDetailPanel(m, v ? {b, f, v} : null);
         } else if(v){
           appRoot.classList.add("has-detail");
           renderPriecelie(b, f, v.id);
@@ -1203,7 +1203,7 @@ function wireAssignMotivPanel(b, f, v){
     go(b.id, f.id, null);
   };
 }
-function renderMotivDetailPanel(m){
+function renderMotivDetailPanel(m, ctx){
   const editing = !!S.motivDetailEdit;
   const u = DATA.umelci.find(x=>x.id===m.umelecId);
   const st = motivStats(m.id);
@@ -1215,6 +1215,13 @@ function renderMotivDetailPanel(m){
   detailPanel.innerHTML = `<div class="pad">
     <p class="eyebrow">${u?esc(u.meno):"Bez umelca"}</p>
     <h2 class="title" style="font-size:22px">${esc(m.nazov || "bez názvu")}</h2>
+    ${ctx ? `
+    <h3 class="sec">Toto sgrafito na priečelí ${esc(facadeLabel(ctx.b, ctx.f))}</h3>
+    <select class="in" id="sp-vyskyt-reassign-motiv">
+      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
+    </select>
+    <p class="hint" style="margin-top:6px">Zmenou výberu preradíš toto konkrétne sgrafito k inému motívu v katalógu.</p>
+    ` : ""}
     ${m.fotoUrl
       ? `<div class="photo-wrap" style="margin-top:8px"><img src="${esc(m.fotoUrl)}" alt="Fotografia motívu"></div>`
       : `<div class="empty">Zatiaľ žiadna fotografia motívu.</div>`}
@@ -1251,9 +1258,15 @@ function renderMotivDetailPanel(m){
       }).join("")}</ul>`
       : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt.</div>`}
   </div>`;
-  wireMotivDetailPanel(m);
+  wireMotivDetailPanel(m, ctx);
 }
-function wireMotivDetailPanel(m){
+function wireMotivDetailPanel(m, ctx){
+  const reassignSel = detailPanel.querySelector("#sp-vyskyt-reassign-motiv");
+  if(reassignSel) reassignSel.onchange = ()=>{
+    ctx.v.motivId = reassignSel.value;
+    saveVyskyt(ctx.v, ctx.f.id);
+    go(ctx.b.id, ctx.f.id, ctx.v.id);
+  };
   detailPanel.querySelectorAll("[data-motivdetail-edit]").forEach(el=>{
     el.onclick = ()=>{ S.motivDetailEdit = !S.motivDetailEdit; render(); };
     el.onkeydown = e => { if(e.key==="Enter") el.click(); };
