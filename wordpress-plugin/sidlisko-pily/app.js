@@ -435,12 +435,16 @@ async function boot(){
   render(); note();
   const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
+  const muc = location.hash.match(/^#\/umelci\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
   const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
+  const mbu = location.hash.match(/^#\/budova\/([^/]+)\/umelec\/([^/]+)/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
   if(mml) goMotivDetail(mml[1]);
   else if(mm) goMotiv(mm[1]);
+  else if(muc){ goList("umelci"); goUmelec(muc[1]); }
   else if(mu) goUmelec(mu[1]);
+  else if(mbu){ go(mbu[1], null, null, {noFit:true}); goUmelec(mbu[2]); }
   else if(ml) goList(ml[1]);
   else if(m && m[2] && m[3]) goPrieceliaMotiv(m[1], m[2], m[3]);
   else if(m) go(m[1], m[2]||null, null, {noFit:true});
@@ -516,8 +520,16 @@ function goMotivDetail(motivId){
 }
 function goUmelec(umelecId){
   if(umelecId !== S.route.umelec) S.umelecDetailEdit = false;
-  S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
-  try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
+  if(umelecId && S.route.list==="umelci"){
+    S.route = {...S.route, umelec:umelecId, motiv:null};
+    try{ location.hash = "#/umelci/"+umelecId; }catch(_){}
+  } else if(umelecId && S.route.budova && !S.route.priecelie){
+    S.route = {...S.route, umelec:umelecId, motiv:null};
+    try{ location.hash = "#/budova/"+S.route.budova+"/umelec/"+umelecId; }catch(_){}
+  } else {
+    S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
+    try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
+  }
   if(map && map.isStyleLoaded()) refreshMapSelection();
   render();
   panel.scrollTop = 0;
@@ -564,10 +576,27 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
+  const muc = location.hash.match(/^#\/umelci\/([^/]+)/);
+  if(muc){
+    if(S.route.umelec !== muc[1] || S.route.list !== "umelci"){
+      S.route = {budova:null, priecelie:null, vyskyt:null, umelec:muc[1], motiv:null, list:"umelci"};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
   if(mu){
     if(S.route.umelec !== mu[1]){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:mu[1], motiv:null, list:null};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
+  const mbu = location.hash.match(/^#\/budova\/([^/]+)\/umelec\/([^/]+)/);
+  if(mbu){
+    if(S.route.budova !== mbu[1] || S.route.umelec !== mbu[2] || S.route.priecelie){
+      if(mbu[1] !== S.route.budova){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
+      S.route = {budova:mbu[1], priecelie:null, vyskyt:null, umelec:mbu[2], motiv:null, list:null};
       if(map && map.isStyleLoaded()) refreshMapSelection(); render();
     }
     return;
@@ -608,15 +637,29 @@ function render(){
       handled = true;
     }
   }
-  if(!handled && S.route.umelec){
+  if(!handled && S.route.umelec && S.route.list==="umelci"){
     const u = DATA.umelci.find(x=>x.id===S.route.umelec);
-    if(u){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderUmelec(u); handled = true; }
+    if(u){
+      appRoot.classList.add("has-detail");
+      renderUmelciList();
+      renderUmelecDetailPanel(u);
+      handled = true;
+    }
   }
   if(!handled){
     const b = DATA.budovy.find(x=>x.id===S.route.budova);
     if(b){
       const f = b.priecelia.find(x=>x.id===S.route.priecelie);
-      if(!f){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b); }
+      if(!f){
+        const u = S.route.umelec ? DATA.umelci.find(x=>x.id===S.route.umelec) : null;
+        if(u){
+          appRoot.classList.add("has-detail");
+          renderBudova(b);
+          renderUmelecDetailPanel(u);
+        } else {
+          appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b);
+        }
+      }
       else {
         const m = S.route.motiv ? DATA.motivy.find(x=>x.id===S.route.motiv) : null;
         const v = S.route.vyskyt ? f.vyskyty.find(x=>x.id===S.route.vyskyt) : null;
@@ -640,6 +683,10 @@ function render(){
   if(!handled && S.route.motiv){
     const m = DATA.motivy.find(x=>x.id===S.route.motiv);
     if(m){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderMotiv(m); handled = true; }
+  }
+  if(!handled && S.route.umelec){
+    const u = DATA.umelci.find(x=>x.id===S.route.umelec);
+    if(u){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderUmelec(u); handled = true; }
   }
   if(!handled){
     appRoot.classList.remove("has-detail");
@@ -1495,6 +1542,68 @@ function wireUmelec(u){
     el.onclick = ()=> go(el.dataset.b, null, null);
   });
   const du = panel.querySelector("#del-u");
+  if(du) du.onclick = ()=>{
+    DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
+    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id){ b.umelecId=""; saveBudova(b); } });
+    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id){ m.umelecId=""; saveMotiv(m); } });
+    deleteUmelecRemote(u.id);
+    goUmelec(null);
+  };
+}
+function renderUmelecDetailPanel(u){
+  const editing = !!S.umelecDetailEdit;
+  const motivyU = motivyByUmelec(u.id);
+  const budovyU = budovyByUmelec(u.id);
+  const countsAll = motivCountsAll();
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelecdetail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">Umelec</p>
+    ${editToggle}
+    ${editing ? `
+    <input class="in" id="sp-umelecdetail-meno" value="${esc(u.meno)}" placeholder="Meno umelca" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
+    <h3 class="sec">Popis</h3>
+    <textarea class="in" id="sp-umelecdetail-popis" placeholder="Životopis, pôsobenie, poznámky…">${esc(u.popis)}</textarea>
+    ` : `
+    <h2 class="title" style="font-size:24px">${esc(u.meno || "bez mena")}</h2>
+    ${u.popis ? `<p class="lead" style="font-size:14px">${esc(u.popis)}</p>` : ""}
+    `}
+
+    <h3 class="sec">Motívy tohto umelca <span class="kod">${motivyU.length}</span></h3>
+    ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
+      <li><span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov||"bez názvu")}</span>
+        <span class="fdir">${countsAll[m.id]||0}× na sídlisku</span></li>`).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v zozname motívov.</div>`}
+
+    <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
+    ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
+        return `<li><button class="fitem" data-b="${esc(b.id)}">
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${b.priecelia.length} priečelí</span>
+      </button></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
+
+    ${editing ? `<div class="row" style="margin-top:26px"><button class="btn warn" id="del-umelecdetail">Zmazať umelca</button></div>` : ""}
+  </div>`;
+  wireUmelecDetailPanel(u);
+}
+function wireUmelecDetailPanel(u){
+  detailPanel.querySelectorAll("[data-umelecdetail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.umelecDetailEdit = !S.umelecDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  const menoEl = detailPanel.querySelector("#sp-umelecdetail-meno");
+  if(menoEl) menoEl.oninput = ()=>{ u.meno = menoEl.value; saveUmelecDebounced(u.id, u); };
+  const popisEl = detailPanel.querySelector("#sp-umelecdetail-popis");
+  if(popisEl) popisEl.oninput = ()=>{ u.popis = popisEl.value; saveUmelecDebounced(u.id, u); };
+  detailPanel.querySelectorAll(".fitem").forEach(el=>{
+    el.onclick = ()=> go(el.dataset.b, null, null);
+  });
+  const du = detailPanel.querySelector("#del-umelecdetail");
   if(du) du.onclick = ()=>{
     DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
     DATA.budovy.forEach(b=>{ if(b.umelecId===u.id){ b.umelecId=""; saveBudova(b); } });
