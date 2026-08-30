@@ -286,6 +286,7 @@ const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
 const DEFAULT_CENTER = [18.6045, 48.7715];
 let map;
+let hoveredEdgeIndex = null;
 
 function computeFitBounds(){
   if(!DATA.budovy.length) return null;
@@ -324,7 +325,7 @@ function facadesFC(){
       const f = findFacadeByEdge(b, i);
       return {
         type:"Feature",
-        properties:{ edgeIndex:i, isFacade: !!f, active: !!f && f.id===S.route.priecelie },
+        properties:{ edgeIndex:i, isFacade: !!f, active: !!f && f.id===S.route.priecelie, hover: i===hoveredEdgeIndex },
         geometry:{ type:"LineString", coordinates:[a,c] }
       };
     })
@@ -378,11 +379,16 @@ async function boot(){
   map.addLayer({id:"facades-hit", type:"line", source:"facades",
     paint:{"line-width":18, "line-opacity":0}});
   map.addLayer({id:"facades-active-halo", type:"line", source:"facades",
-    filter:["==",["get","active"],true],
+    filter:["any",["get","active"],["all",["get","hover"],["get","isFacade"]]],
     paint:{"line-color":"#f2c230", "line-width":16, "line-opacity":0.45, "line-blur":6}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
-    paint:{"line-color":["case",["get","active"],"#f2c230",["get","isFacade"],"#d0342c","#b9b6ae"],
-           "line-width":["case",["get","active"],5,["get","isFacade"],3.5,1.3],
+    paint:{"line-color":["case",
+             ["any",["get","active"],["all",["get","hover"],["get","isFacade"]]], "#f2c230",
+             ["get","isFacade"], "#d0342c",
+             "#b9b6ae"],
+           "line-width":["case",
+             ["any",["get","active"],["all",["get","hover"],["get","isFacade"]]], 5,
+             ["get","isFacade"], 3.5, 1.3],
            "line-dasharray":["case",["get","isFacade"],["literal",[1]],["literal",[1,1.6]]]}});
 
   map.on("mousemove","buildings-fill", ()=> map.getCanvas().style.cursor = "pointer");
@@ -395,8 +401,21 @@ async function boot(){
     const hits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
     if(!hits.length) go(null, null);
   });
-  map.on("mousemove","facades-hit", ()=> map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave","facades-hit", ()=> map.getCanvas().style.cursor = "");
+  map.on("mousemove","facades-hit", e=>{
+    map.getCanvas().style.cursor = "pointer";
+    const ei = e.features[0].properties.edgeIndex;
+    if(hoveredEdgeIndex !== ei){
+      hoveredEdgeIndex = ei;
+      if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+    }
+  });
+  map.on("mouseleave","facades-hit", ()=>{
+    map.getCanvas().style.cursor = "";
+    if(hoveredEdgeIndex !== null){
+      hoveredEdgeIndex = null;
+      if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+    }
+  });
   map.on("click","facades-hit", e=>{
     const b = DATA.budovy.find(x=>x.id===S.route.budova);
     if(!b) return;
