@@ -317,9 +317,6 @@ async function boot(){
     paint:{"fill-color":"#14161a", "fill-opacity":0.55}});
   map.addLayer({id:"buildings-line", type:"line", source:"buildings",
     paint:{"line-color":"#14161a", "line-width":1.3}});
-  map.addLayer({id:"buildings-active-line", type:"line", source:"buildings",
-    filter:["==",["get","id"], "__none__"],
-    paint:{"line-color":"#d0342c", "line-width":3}});
   map.addLayer({id:"buildings-active-fill", type:"fill", source:"buildings",
     filter:["==",["get","id"], "__none__"],
     paint:{"fill-color":"#14161a", "fill-opacity":0.75}});
@@ -327,7 +324,7 @@ async function boot(){
   map.addLayer({id:"facades-hit", type:"line", source:"facades",
     paint:{"line-width":18, "line-opacity":0}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
-    paint:{"line-color":["case",["get","active"],"#d0342c",["get","isFacade"],"#14161a","#b9b6ae"],
+    paint:{"line-color":["case",["any",["get","active"],["get","isFacade"]],"#d0342c","#b9b6ae"],
            "line-width":["case",["get","active"],5,["get","isFacade"],3.5,1.3],
            "line-dasharray":["case",["get","isFacade"],["literal",[1]],["literal",[1,1.6]]]}});
 
@@ -362,7 +359,6 @@ boot();
 wireTabs();
 
 function refreshMapSelection(){
-  map.setFilter("buildings-active-line", ["==",["get","id"], S.route.budova||"__none__"]);
   map.setFilter("buildings-active-fill", ["==",["get","id"], S.route.budova||"__none__"]);
   map.getSource("facades") && map.getSource("facades").setData(facadesFC());
 }
