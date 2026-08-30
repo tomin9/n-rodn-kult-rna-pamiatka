@@ -527,10 +527,15 @@ function render(){
       if(!f){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b); }
       else {
         const m = S.route.motiv ? DATA.motivy.find(x=>x.id===S.route.motiv) : null;
+        const v = (!m && S.route.vyskyt) ? f.vyskyty.find(x=>x.id===S.route.vyskyt) : null;
         if(m){
           appRoot.classList.add("has-detail");
           renderPriecelie(b, f, S.route.vyskyt||null);
           renderMotivDetailPanel(m);
+        } else if(v){
+          appRoot.classList.add("has-detail");
+          renderPriecelie(b, f, v.id);
+          renderAssignMotivPanel(b, f, v);
         } else {
           appRoot.classList.remove("has-detail");
           detailPanel.innerHTML="";
@@ -1046,6 +1051,37 @@ function wirePriecelie(b, f){
   panel.querySelectorAll("[data-mid]").forEach(el=>{
     if(el.tagName==="BUTTON") el.onclick = ()=> goPrieceliaMotiv(b.id, f.id, el.dataset.mid);
   });
+}
+function renderAssignMotivPanel(b, f, v){
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow" style="color:var(--survey)">Bez motívu</p>
+    <h2 class="title" style="font-size:22px">${esc(v.nazov || "bez názvu")}</h2>
+    <div class="empty">Tento výskyt zatiaľ nemá priradený motív z katalógu.</div>
+    <h3 class="sec">Priradiť motív</h3>
+    ${DATA.motivy.length
+      ? `<select class="in" id="sp-assign-motiv">
+          <option value="" selected disabled>— vyber motív —</option>
+          ${DATA.motivy.map(m=>`<option value="${esc(m.id)}">${esc(motivLabel(m))}</option>`).join("")}
+        </select>
+        <p class="hint">Po priradení motívu sa otvorí jeho karta s fotkou a údajmi.</p>`
+      : `<p class="hint">Katalóg motívov je zatiaľ prázdny. Najprv pridaj motív v zozname Motívy.</p>`}
+    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-v">Zrušiť tento výskyt</button></div>
+  </div>`;
+  wireAssignMotivPanel(b, f, v);
+}
+function wireAssignMotivPanel(b, f, v){
+  const sel = detailPanel.querySelector("#sp-assign-motiv");
+  if(sel) sel.onchange = ()=>{
+    v.motivId = sel.value;
+    saveVyskyt(v, f.id);
+    go(b.id, f.id, v.id);
+  };
+  const dv = detailPanel.querySelector("#del-v");
+  if(dv) dv.onclick = ()=>{
+    f.vyskyty = f.vyskyty.filter(x=>x.id!==v.id);
+    deleteVyskytRemote(v.id);
+    go(b.id, f.id, null);
+  };
 }
 function renderMotivDetailPanel(m){
   const editing = !!S.motivDetailEdit;
