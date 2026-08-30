@@ -744,7 +744,7 @@ function renderPrehlad(){
 }
 function renderBudovyList(){
   const n = DATA.budovy.length;
-  panel.innerHTML = crumb([{t:"budovy"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Zoznam</p>
     <h2 class="title">Budovy <span class="kod">${n}</span></h2>
     ${n ? `<ul class="list">${DATA.budovy.map(b=>{
@@ -764,7 +764,7 @@ function renderUmelciList(){
   const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
     <a data-umelci-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
   </div>`;
-  panel.innerHTML = crumb([{t:"umelci"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Umelci <span class="kod">${DATA.umelci.length}</span></h2>
     ${editToggle}
@@ -852,7 +852,7 @@ function renderMotivyList(){
     <a data-motivy-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
   </div>`;
 
-  panel.innerHTML = crumb([{t:"motívy"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
     ${editToggle}
@@ -930,7 +930,7 @@ function renderDielaList(){
     </button></li>`;
   };
 
-  panel.innerHTML = crumb([{t:"diela"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Databáza</p>
     <h2 class="title">Diela <span class="kod">${rows.length}</span></h2>
     ${bezMotivuCount ? `<p class="hint" style="color:var(--survey)">${bezMotivuCount}× bez priradeného motívu — sú na začiatku zoznamu nižšie.</p>` : ""}
@@ -981,9 +981,11 @@ function miniPlan(b, activeId, legendHtml){
     <div class="legend">${legendHtml||""}</div>
   </div>`;
 }
-function budovaTabsHtml(activeTab){
+function budovaTabsHtml(b, activeTab){
   const btn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${activeTab===key}">${esc(label)}</button>`;
+  const nameTab = `<span class="tool" style="cursor:default;background:var(--ink);color:var(--paper);border-color:var(--ink)">${esc(b.kod||b.id)}</span>`;
   return `<div class="row" style="margin-top:0">
+    ${nameTab}
     ${btn("zakladne","Základné údaje")}
     ${btn("priecelia","Priečelia")}
     ${btn("motivy","Motívy")}
@@ -1073,8 +1075,8 @@ function renderBudova(b){
       <input type="file" id="upload-podklad-b-input" hidden>
     </div>`;
 
-  panel.innerHTML = crumb([{t:b.kod||b.id, red:true}]) + `<div class="pad">
-    ${budovaTabsHtml(tab)}
+  panel.innerHTML = `<div class="pad">
+    ${budovaTabsHtml(b, tab)}
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
   </div>`;
   wire(b);
@@ -1119,8 +1121,8 @@ function renderPriecelie(b, f, activeVid){
       </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
-  panel.innerHTML = crumb([{t:b.kod||b.id, go:b.id, red:true},{t:facadeLabel(b,f)}]) + `<div class="pad">
-    ${budovaTabsHtml("priecelia")}
+  panel.innerHTML = `<div class="pad">
+    ${budovaTabsHtml(b, "priecelia")}
     ${f.unresolved ? `<div class="empty" style="border-color:var(--survey);color:var(--survey)">Toto priečelie sa nepodarilo umiestniť na správnu stranu domu (napr. po zmene tvaru budovy). Údaje a motívy zostali zachované — klikni na Editovať a použi "Presunúť na inú stranu domu".</div>` : ""}
     ${photoBlock(f, activeVid||null, !!adding)}
     <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
@@ -1363,7 +1365,7 @@ function renderMotiv(m){
   })));
   const u = DATA.umelci.find(x=>x.id===m.umelecId);
 
-  panel.innerHTML = crumb([{t:"motívy", go:"list:motivy"},{t:motivLabel(m)}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Motív</p>
     <div class="row" style="margin:0;align-items:center;gap:10px">
       <input type="color" class="in" id="sp-motiv-farba" style="flex:0 0 40px;padding:2px" value="${esc(m.farba)}">
@@ -1443,7 +1445,7 @@ function renderUmelec(u){
   const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
     <a data-umelec-detail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
   </div>`;
-  panel.innerHTML = crumb([{t:"umelci", go:"list:umelci"},{t:u.meno||"bez mena"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Umelec</p>
     ${editToggle}
     ${editing ? `
