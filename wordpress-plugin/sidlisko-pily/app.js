@@ -380,10 +380,10 @@ async function boot(){
     paint:{"line-width":18, "line-opacity":0}});
   map.addLayer({id:"facades-active-halo", type:"line", source:"facades",
     filter:["any",["get","active"],["all",["get","hover"],["get","isFacade"]]],
-    paint:{"line-color":"#f2c230", "line-width":16, "line-opacity":0.45, "line-blur":6}});
+    paint:{"line-color":"#2563eb", "line-width":16, "line-opacity":0.45, "line-blur":6}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
     paint:{"line-color":["case",
-             ["any",["get","active"],["all",["get","hover"],["get","isFacade"]]], "#f2c230",
+             ["any",["get","active"],["all",["get","hover"],["get","isFacade"]]], "#2563eb",
              ["get","isFacade"], "#d0342c",
              "#b9b6ae"],
            "line-width":["case",
