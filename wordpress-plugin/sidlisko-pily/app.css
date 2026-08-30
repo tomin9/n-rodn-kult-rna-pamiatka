@@ -132,7 +132,7 @@
   color:var(--ink-2);border:1px solid var(--line);padding:1px 5px;flex:0 0 auto}
 .sidlisko-pily-app ul.list li a{color:var(--ink);text-underline-offset:3px}
 .sidlisko-pily-app .fitem{display:flex;justify-content:space-between;gap:10px;width:100%;background:none;border:0;
-  padding:9px 0;cursor:pointer;text-align:left;border-bottom:1px solid var(--line);align-items:baseline}
+  padding:9px 0;cursor:pointer;text-align:left;align-items:baseline}
 .sidlisko-pily-app .fitem:hover .fname{color:var(--survey)}
 .sidlisko-pily-app .fitem:disabled{cursor:default}
 .sidlisko-pily-app .fitem:disabled:hover .fname{color:inherit}
