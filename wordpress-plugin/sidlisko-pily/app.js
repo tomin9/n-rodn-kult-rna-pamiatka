@@ -503,6 +503,14 @@ function motivCountsAll(){
   })));
   return counts;
 }
+function motivCountsBudova(b){
+  const counts = {};
+  b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    const k = v.motivId || "";
+    counts[k] = (counts[k]||0)+1;
+  }));
+  return counts;
+}
 function renderPrehlad(){
   const n = DATA.budovy.length;
   const counts = motivCountsAll();
@@ -723,6 +731,18 @@ function renderBudova(b){
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
 
+  const motivBCounts = motivCountsBudova(b);
+  const motivBKeys = Object.keys(motivBCounts).filter(k=>k);
+  const bezMotivuB = motivBCounts[""] || 0;
+  const motivyTab = `
+    <h3 class="sec">Motívy na budove <span class="kod">${motivBKeys.length}</span></h3>
+    ${motivBKeys.length ? `<ul class="list">${motivBKeys.map(mid=>{
+        const m = DATA.motivy.find(x=>x.id===mid);
+        return `<li><span style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:"neznámy motív")}</span><span class="fdir">${motivBCounts[mid]}×</span></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}
+    ${bezMotivuB ? `<p class="hint">${bezMotivuB}× výskyt na tejto budove zatiaľ bez priradeného motívu.</p>` : ""}`;
+
   const podkladyTab = `
     <h3 class="sec">Podklady</h3>
     ${podkladyBlok(b.podklady, "b")}
@@ -736,9 +756,10 @@ function renderBudova(b){
     <div class="row" style="margin-top:0">
       ${tabBtn("zakladne","Základné údaje")}
       ${tabBtn("priecelia","Priečelia")}
+      ${tabBtn("motivy","Motívy")}
       ${tabBtn("podklady","Podklady")}
     </div>
-    ${tab==="priecelia" ? prieceliaTab : tab==="podklady" ? podkladyTab : zakladneTab}
+    ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
     <p class="hint">Zmeny sa priebežne ukladajú do databázy — vidí ich celý tím.</p>
   </div>`;
   wire(b);
