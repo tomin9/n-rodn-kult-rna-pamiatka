@@ -893,16 +893,14 @@ function renderMotivyList(){
     </button></li>`;
 
   const motivItemEdit = m => `<li style="display:block">
-    <div class="row" style="margin:0;align-items:center">
+    <div class="row" style="margin:0;align-items:center;flex-wrap:nowrap">
       <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
-      <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
-      <select class="in" style="flex:0 0 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
+      <input class="in" style="flex:1;min-width:60px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
+      <select class="in" style="flex:0 1 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
         <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
         ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
       </select>
-      <span class="fdir" style="flex:0 0 auto">${motivStatsLabel(m)}</span>
-      <button class="btn ghost" data-mid="${esc(m.id)}" title="Detail motívu">→</button>
-      <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
+      <button class="btn ghost" style="flex:0 0 auto" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
     </div>
   </li>`;
 
