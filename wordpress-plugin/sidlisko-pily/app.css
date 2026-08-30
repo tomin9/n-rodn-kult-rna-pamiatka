@@ -123,6 +123,7 @@
 .sidlisko-pily-app .fedge:hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fedge.is-facade{stroke:var(--ink);stroke-width:3;stroke-dasharray:none}
 .sidlisko-pily-app .fedge.is-active{stroke:var(--survey);stroke-width:5;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fhit-mini{stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
 .sidlisko-pily-app .plan .fill{fill:var(--ink);fill-opacity:.32;stroke:none}
 

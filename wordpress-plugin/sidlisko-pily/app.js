@@ -1066,7 +1066,7 @@ function miniPlan(b, activeId, legendHtml){
     const a=P(local[i]), c=P(local[(i+1)%local.length]);
     const f = findFacadeByEdge(b, i);
     const cls = (f && f.id===activeId) ? " is-active" : (f ? " is-facade" : "");
-    return `<line class="fedge${cls}" x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}"></line>
+    return `<line class="fedge${cls}"${f?` data-f="${esc(f.id)}"`:""} x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}"></line>
             <line class="fhit-mini" x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}" data-edge="${i}"></line>`;
   }).join("");
   return `<div class="plan">
@@ -1178,6 +1178,15 @@ function renderBudova(b){
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
   </div>`;
   wire(b);
+  if(tab==="priecelia") wirePrieceliaListHover();
+}
+function wirePrieceliaListHover(){
+  panel.querySelectorAll(".fitem[data-f]:not([data-v])").forEach(el=>{
+    const edge = panel.querySelector(`.fedge[data-f="${el.dataset.f}"]`);
+    if(!edge) return;
+    el.addEventListener("mouseenter", ()=> edge.classList.add("is-hover"));
+    el.addEventListener("mouseleave", ()=> edge.classList.remove("is-hover"));
+  });
 }
 function photoBlock(f, activeVyskytId, addingMode){
   if(!f.fotoUrl){
