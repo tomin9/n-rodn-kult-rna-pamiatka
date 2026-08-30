@@ -65,12 +65,12 @@ function prieceliaRow(f, budovaId){
   const ll = f.edgeLL || [[null,null],[null,null]];
   return { id:f.id, budova_id:budovaId, edge_index:f.edgeIndex, smer:f.smer, dlzka:f.dlzka,
     nazov:f.nazov, popis:f.popis, vyzdoba:f.vyzdoba, autor:f.autor, rok:f.rok, stav:f.stav,
-    podklady:f.podklady, foto_url:f.fotoUrl||null,
+    podklady:f.podklady, foto_url:f.fotoUrl||"",
     edge_lng1: ll[0][0], edge_lat1: ll[0][1], edge_lng2: ll[1][0], edge_lat2: ll[1][1],
     updated_at:new Date().toISOString() };
 }
 function motivRow(m){
-  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, foto_url:m.fotoUrl||null, updated_at:new Date().toISOString() };
+  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, foto_url:m.fotoUrl||"", updated_at:new Date().toISOString() };
 }
 function umelecRow(u){
   return { id:u.id, meno:u.meno, popis:u.popis, updated_at:new Date().toISOString() };
@@ -78,7 +78,7 @@ function umelecRow(u){
 function vyskytRow(v, prieceleId){
   return { id:v.id, priecelie_id:prieceleId, motiv_id:v.motivId||null, nazov:v.nazov, x:v.x, y:v.y,
     velkost:v.velkost, vrstvy:v.vrstvy, stav:v.stav, popis:v.popis, podklady:v.podklady,
-    foto_url:v.fotoUrl||null, updated_at:new Date().toISOString() };
+    foto_url:v.fotoUrl||"", updated_at:new Date().toISOString() };
 }
 function makeKeyedDebounce(fn, ms){
   const timers = {};
