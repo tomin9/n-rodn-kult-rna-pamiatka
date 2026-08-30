@@ -734,13 +734,17 @@ function renderBudova(b){
     </table>
     ${b.popis ? `<h3 class="sec">Popis</h3><p class="lead" style="font-size:14px">${esc(b.popis)}</p>` : ""}`;
 
-  const prieceliaTab = b.priecelia.length
-    ? b.priecelia.map(f=>{
+  const bs = budovaStats(b);
+  const prieceliaTab = `
+    ${miniPlan(b, null, `${bs.motivov} motívov<br>${bs.diel} diel`)}
+    ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>{
         const fs = facadeStats(f);
-        const legend = `Označenie<br>${esc(b.kod||b.id)}/${esc(facadeLabel(b,f))}<br><br>Dĺžka<br>${f.dlzka} m<br><br>Počet motívov<br>${fs.motivov}<br><br>Počet diel<br>${fs.diel}`;
-        return miniPlan(b, f.id, legend);
-      }).join("")
-    : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape.</div>`;
+        return `<li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
+        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
+        <span class="fdir">${fs.motivov} motívov · ${fs.diel} diel</span>
+      </button></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
 
   const groupedB = {};
   const standaloneB = [];
@@ -773,7 +777,6 @@ function renderBudova(b){
   panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
     ${budovaTabsHtml(tab)}
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
-    <p class="hint">Zmeny sa priebežne ukladajú do databázy — vidí ich celý tím.</p>
   </div>`;
   wire(b);
 }
