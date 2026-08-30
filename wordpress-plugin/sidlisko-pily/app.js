@@ -103,10 +103,6 @@ const savePrieceliaDebounced = makeKeyedDebounce(savePriecelie, 700);
 const saveMotivDebounced = makeKeyedDebounce(saveMotiv, 500);
 const saveVyskytDebounced = makeKeyedDebounce(saveVyskyt, 700);
 const saveUmelecDebounced = makeKeyedDebounce(saveUmelec, 500);
-async function deleteBudovaRemote(id){
-  const {error} = await sb.from("budovy").delete().eq("id", id);
-  if(error) console.error("Zmazanie domu zlyhalo:", error.message);
-}
 async function deletePrieceliaRemote(id){
   const {error} = await sb.from("priecelia").delete().eq("id", id);
   if(error) console.error("Zmazanie priečelia zlyhalo:", error.message);
@@ -226,7 +222,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, list:null}, addingVyskyt:null, budovaTab:"zakladne" };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -369,7 +365,7 @@ function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
   const zmenaBudovy = budovaId !== S.route.budova;
-  if(zmenaBudovy) S.budovaTab = "zakladne";
+  if(zmenaBudovy){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
   S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, list:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
@@ -436,7 +432,7 @@ window.addEventListener("hashchange", ()=>{
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
   const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, umelec:null, list:null};
   if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt || S.route.umelec || S.route.list){
-    if(want.budova !== S.route.budova) S.budovaTab = "zakladne";
+    if(want.budova !== S.route.budova){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
     S.route = want; if(map && map.isStyleLoaded()) refreshMapSelection(); render();
   }
 });
@@ -680,10 +676,20 @@ function miniPlan(b, activeId){
 function renderBudova(b){
   const totalVyskytov = b.priecelia.reduce((s,f)=>s+f.vyskyty.length,0);
   const tab = S.budovaTab || "zakladne";
+  const editing = !!S.budovaEdit;
   const tabBtn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${tab===key}">${esc(label)}</button>`;
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+  const umelec = DATA.umelci.find(u=>u.id===b.umelecId);
+  const umelecView = umelec
+    ? `<a data-u="${esc(umelec.id)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc(umelec.meno)}</a>`
+    : `<span class="muted">— bez umelca —</span>`;
+  const viewRow = (label, html)=> `<tr><th>${esc(label)}</th><td>${html || `<span class="muted">—</span>`}</td></tr>`;
 
-  const zakladneTab = `
+  const zakladneTab = editing ? `
     <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
+    ${editToggle}
     <table class="meta">
       ${fieldRow("Pôvodné označenie", b.oznacenie, "oznacenie")}
       ${fieldRow("Adresa", b.adresa, "adresa")}
@@ -692,9 +698,20 @@ function renderBudova(b){
       ${selectRow("Zateplenie", b.zateplenie, "zateplenie", ZATEPLENIE_MOZNOSTI)}
       ${umelecSelectRow("Umelec (sgrafitá/reliéfy)", b.umelecId, "umelecId")}
     </table>
-    ${b.umelecId ? `<p class="hint">Profil umelca: <a data-u="${esc(b.umelecId)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc((DATA.umelci.find(u=>u.id===b.umelecId)||{}).meno||"")}</a></p>` : ""}
+    ${b.umelecId ? `<p class="hint">Profil umelca: ${umelecView}</p>` : ""}
     <h3 class="sec">Popis</h3>
-    <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>`;
+    <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>` : `
+    <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
+    ${editToggle}
+    <table class="meta">
+      ${viewRow("Pôvodné označenie", esc(b.oznacenie))}
+      ${viewRow("Adresa", esc(b.adresa))}
+      ${viewRow("Rok výstavby", esc(b.rok))}
+      ${viewRow("Typ objektu", esc(b.typ))}
+      ${viewRow("Zateplenie", esc(b.zateplenie))}
+      ${viewRow("Umelec (sgrafitá/reliéfy)", umelecView)}
+    </table>
+    ${b.popis ? `<h3 class="sec">Popis</h3><p class="lead" style="font-size:14px">${esc(b.popis)}</p>` : ""}`;
 
   const prieceliaTab = `
     <h3 class="sec">Priečelia <span class="kod">${totalVyskytov} výskytov</span></h3>
@@ -722,9 +739,6 @@ function renderBudova(b){
       ${tabBtn("podklady","Podklady")}
     </div>
     ${tab==="priecelia" ? prieceliaTab : tab==="podklady" ? podkladyTab : zakladneTab}
-    <div class="row" style="margin-top:26px">
-      <button class="btn warn" id="del-b">Zmazať dom</button>
-    </div>
     <p class="hint">Zmeny sa priebežne ukladajú do databázy — vidí ich celý tím.</p>
   </div>`;
   wire(b);
@@ -1027,6 +1041,10 @@ function wire(b, f, v){
   panel.querySelectorAll("[data-btab]").forEach(el=>{
     el.onclick = ()=>{ S.budovaTab = el.dataset.btab; render(); };
   });
+  panel.querySelectorAll("[data-edit-toggle]").forEach(el=>{
+    el.onclick = ()=>{ S.budovaEdit = !S.budovaEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   panel.querySelectorAll(".fhit-mini").forEach(el=>{ el.onclick = ()=> toggleEdge(b, +el.dataset.edge); });
   panel.querySelectorAll("[data-path]").forEach(el=>{
     el.oninput = ()=>{ b[el.dataset.path] = el.value; saveBudovaDebounced(b.id, b); };
@@ -1083,14 +1101,6 @@ function wire(b, f, v){
     saveVyskyt(v, f.id); render();
   });
 
-  const db = panel.querySelector("#del-b");
-  if(db) db.onclick = ()=>{
-    DATA.budovy.splice(DATA.budovy.indexOf(b),1);
-    deleteBudovaRemote(b.id);
-    map.getSource("buildings").setData(buildingsFC());
-    map.getSource("labels").setData(labelsFC());
-    go(null,null,null);
-  };
   const df = panel.querySelector("#del-f");
   if(df) df.onclick = ()=>{
     b.priecelia = b.priecelia.filter(x=>x.id!==f.id);

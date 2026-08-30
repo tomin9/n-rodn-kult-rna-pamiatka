@@ -70,6 +70,11 @@
 }
 .sidlisko-pily-app .crumb a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line);cursor:pointer}
 .sidlisko-pily-app .crumb a:hover{color:var(--survey);border-color:var(--survey)}
+.sidlisko-pily-app .edit-toggle{
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+  color:var(--ink-2);border-bottom:1px solid var(--line);cursor:pointer;
+}
+.sidlisko-pily-app .edit-toggle:hover{color:var(--survey);border-color:var(--survey)}
 .sidlisko-pily-app .eyebrow{font-family:var(--sans);text-transform:uppercase;letter-spacing:.16em;font-size:11px;
   font-weight:600;color:var(--ink-2);margin:0 0 6px}
 .sidlisko-pily-app h2.title{font-family:var(--sans);font-weight:700;font-size:30px;line-height:1.05;
