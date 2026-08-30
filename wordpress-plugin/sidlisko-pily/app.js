@@ -625,6 +625,13 @@ function umelecSelectRow(label, val, path){
     ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${val===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
   </select></td></tr>`;
 }
+const ZATEPLENIE_MOZNOSTI = ["nezateplené", "zateplené", "čiastočne zateplené", "príprava zateplenia"];
+function selectRow(label, val, path, options){
+  return `<tr><th>${esc(label)}</th><td><select class="in" data-path="${path}">
+    <option value=""${!val?" selected":""}>— nevybrané —</option>
+    ${options.map(o=>`<option value="${esc(o)}"${val===o?" selected":""}>${esc(o)}</option>`).join("")}
+  </select></td></tr>`;
+}
 function miniPlan(b, activeId){
   const local = toLocalPoly(b.poly);
   const xs=local.map(p=>p[0]), ys=local.map(p=>p[1]);
@@ -663,8 +670,7 @@ function renderBudova(b){
       ${fieldRow("Adresa", b.adresa, "adresa")}
       ${fieldRow("Rok výstavby", b.rok, "rok")}
       ${fieldRow("Typ objektu", b.typ, "typ")}
-      ${fieldRow("Zateplenie", b.zateplenie, "zateplenie")}
-      ${fieldRow("Stav", b.stav, "stav")}
+      ${selectRow("Zateplenie", b.zateplenie, "zateplenie", ZATEPLENIE_MOZNOSTI)}
       ${umelecSelectRow("Umelec (sgrafitá/reliéfy)", b.umelecId, "umelecId")}
     </table>
     ${b.umelecId ? `<p class="hint">Profil umelca: <a data-u="${esc(b.umelecId)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc((DATA.umelci.find(u=>u.id===b.umelecId)||{}).meno||"")}</a></p>` : ""}
