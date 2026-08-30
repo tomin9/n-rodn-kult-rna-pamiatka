@@ -536,9 +536,6 @@ function render(){
   }
   updateTabs();
 }
-function budovaLabel(b){
-  return b.nazov || b.adresa || b.kod || b.id;
-}
 function budovaStats(b){
   let diel = 0;
   const motivy = new Set();
@@ -626,12 +623,12 @@ function renderBudovyList(){
     <p class="eyebrow">Zoznam</p>
     <h2 class="title">Budovy <span class="kod">${n}</span></h2>
     ${n ? `<ul class="list">${DATA.budovy.map(b=>{
-        const label = budovaLabel(b);
-        const kodInFdir = label !== (b.kod||b.id);
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
         const s = budovaStats(b);
         return `<li><button class="fitem" data-b="${b.id}">
-        <span class="fname">${esc(label)}</span>
-        <span class="fdir">${kodInFdir?esc(b.kod)+" · ":""}${s.priecelia} priečelí · ${s.motivov} motívov · ${s.diel} diel</span>
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${s.priecelia} priečelí · ${s.motivov} motívov · ${s.diel} diel</span>
       </button></li>`;
       }).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne domy.</div>`}
   </div>`;
@@ -1296,11 +1293,11 @@ function renderUmelec(u){
 
     <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
     ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
-        const label = budovaLabel(b);
-        const kodInFdir = label !== (b.kod||b.id);
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
         return `<li><button class="fitem" data-b="${esc(b.id)}">
-        <span class="fname">${esc(label)}</span>
-        <span class="fdir">${kodInFdir?esc(b.kod):`${b.priecelia.length} priečelí`}</span>
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${b.priecelia.length} priečelí</span>
       </button></li>`;
       }).join("")}</ul>`
       : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
