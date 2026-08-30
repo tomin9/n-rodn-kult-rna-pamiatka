@@ -36,7 +36,7 @@
 .sidlisko-pily-app .tool:hover{border-color:var(--ink);}
 .sidlisko-pily-app .tool[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-.sidlisko-pily-app main{flex:1;display:grid;grid-template-columns:1fr 400px;min-height:0}
+.sidlisko-pily-app main{flex:1;display:grid;grid-template-columns:2fr 1fr;min-height:0}
 @media (min-width:901px){
   .sidlisko-pily-app.wide-panel main{grid-template-columns:1fr minmax(420px,58%)}
 }
