@@ -574,8 +574,8 @@ function budovyByUmelec(umelecId){
 function crumb(parts){
   return `<nav class="crumb">${parts.map((p,i)=>
     (i?'<span>›</span>':'') + (p.go!==undefined
-      ? `<a tabindex="0" data-go='${p.go}'>${esc(p.t)}</a>`
-      : `<span>${esc(p.t)}</span>`)).join("")}</nav>`;
+      ? `<a tabindex="0" data-go='${p.go}'${p.red?' style="color:var(--survey)"':''}>${esc(p.t)}</a>`
+      : `<span${p.red?' style="color:var(--survey)"':''}>${esc(p.t)}</span>`)).join("")}</nav>`;
 }
 function motivCountsAll(){
   const counts = {};
@@ -831,7 +831,7 @@ function renderBudova(b){
   </div>`;
   const umelec = DATA.umelci.find(u=>u.id===b.umelecId);
   const umelecView = umelec
-    ? `<a data-u="${esc(umelec.id)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc(umelec.meno)}</a>`
+    ? `<a data-u="${esc(umelec.id)}" tabindex="0" style="cursor:pointer;color:var(--survey);text-decoration:none">${esc(umelec.meno)}</a>`
     : `<span class="muted">— bez umelca —</span>`;
   const viewRow = (label, html)=> `<tr><th>${esc(label)}</th><td>${html || `<span class="muted">—</span>`}</td></tr>`;
 
@@ -905,7 +905,7 @@ function renderBudova(b){
       <input type="file" id="upload-podklad-b-input" hidden>
     </div>`;
 
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
+  panel.innerHTML = crumb([{t:b.kod||b.id, red:true}]) + `<div class="pad">
     ${budovaTabsHtml(tab)}
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
   </div>`;
@@ -950,7 +950,7 @@ function renderPriecelie(b, f, activeVid){
       </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:facadeLabel(b,f)}]) + `<div class="pad">
+  panel.innerHTML = crumb([{t:b.kod||b.id, go:b.id, red:true},{t:facadeLabel(b,f)}]) + `<div class="pad">
     ${budovaTabsHtml("priecelia")}
     ${photoBlock(f, activeVid||null, !!adding)}
     <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">

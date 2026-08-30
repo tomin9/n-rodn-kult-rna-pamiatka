@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Sídlisko Píly – pasport budov
  * Description: Vloží interaktívny pasport budov, priečelí a výskytov sgrafít (georeferencovaná mapa cez Mapbox, dáta v Supabase) cez shortcode [sidlisko_pily].
- * Version: 2.28.2
+ * Version: 2.28.3
  * Author: Ars Preuge
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('SIDLISKO_PILY_VERSION', '2.28.2');
+define('SIDLISKO_PILY_VERSION', '2.28.3');
 
 function sidlisko_pily_enqueue_assets() {
     global $post;
