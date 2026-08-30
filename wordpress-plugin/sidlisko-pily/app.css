@@ -78,13 +78,22 @@
 .sidlisko-pily-app .lead{font-family:var(--serif);font-size:16px;color:var(--ink);margin:10px 0 0}
 .sidlisko-pily-app .muted{color:var(--ink-2)}
 
-.sidlisko-pily-app table.meta{width:100%;border-collapse:collapse;font-size:14px}
+.sidlisko-pily-app table.meta{width:100%;border-collapse:collapse;font-size:14px;border:0!important;background:none!important}
+.sidlisko-pily-app table.meta tr{border:0!important;background:none!important}
+.sidlisko-pily-app table.meta th, .sidlisko-pily-app table.meta td{
+  border:0!important;border-bottom:1px solid var(--line)!important;background:none!important;
+  box-shadow:none!important;vertical-align:top;
+}
 .sidlisko-pily-app table.meta th{
   text-align:left;font-family:var(--sans);text-transform:uppercase;letter-spacing:.08em;
-  font-size:11px;font-weight:600;color:var(--ink-2);width:38%;padding:6px 8px 6px 0;
-  vertical-align:top;border-bottom:1px solid var(--line);
+  font-size:11px;font-weight:600;color:var(--ink-2);width:38%;padding:11px 14px 11px 0;
 }
-.sidlisko-pily-app table.meta td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.sidlisko-pily-app table.meta td{padding:8px 0}
+.sidlisko-pily-app table.meta tr:last-child th,
+.sidlisko-pily-app table.meta tr:last-child td{border-bottom:0!important}
+.sidlisko-pily-app table.meta td .in{border-color:transparent;background:transparent}
+.sidlisko-pily-app table.meta td .in:hover{border-color:var(--line)}
+.sidlisko-pily-app table.meta td .in:focus{border-color:var(--survey);background:var(--white)}
 
 .sidlisko-pily-app .plan{display:flex;gap:16px;align-items:flex-start;margin-top:6px}
 .sidlisko-pily-app .plan svg{background:var(--white);border:1px solid var(--line);flex:0 0 auto}
