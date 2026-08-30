@@ -680,6 +680,15 @@ function motivLabel(m){
   const nazov = m.nazov || "bez názvu";
   return u ? `${u.meno} – ${nazov}` : nazov;
 }
+function motivyForBudova(b, alwaysIncludeId){
+  if(!b.umelecId) return DATA.motivy;
+  let list = DATA.motivy.filter(m=>m.umelecId===b.umelecId);
+  if(alwaysIncludeId && !list.some(m=>m.id===alwaysIncludeId)){
+    const extra = DATA.motivy.find(m=>m.id===alwaysIncludeId);
+    if(extra) list = list.concat(extra);
+  }
+  return list.length ? list : DATA.motivy;
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -1110,14 +1119,14 @@ function renderPriecelie(b, f, activeVid){
     <input type="file" id="sp-upload-foto" accept="image/*" hidden>
     <div class="row">
       <button class="btn ghost" id="sp-btn-upload-foto">${f.fotoUrl?"Nahrať inú fotku":"Nahrať fotku priečelia"}</button>
-      ${f.fotoUrl ? (DATA.motivy.length
+      ${f.fotoUrl ? (motivyForBudova(b).length
         ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>`
         : `<span class="hint">Najprv pridaj motív do <a data-go="list:motivy" tabindex="0">katalógu motívov</a>.</span>`) : ""}
     </div>
     ${f.fotoUrl && adding ? `
     <div class="row" style="align-items:center">
       <select class="in" id="sp-adding-motiv" style="flex:1;min-width:160px">
-        ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
+        ${motivyForBudova(b, S.addingVyskyt.motivId).map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
       </select>
     </div>
     <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
@@ -1148,7 +1157,8 @@ function wirePriecelie(b, f){
     if(S.addingVyskyt && S.addingVyskyt.prieceleId===f.id){
       S.addingVyskyt = null;
     } else {
-      S.addingVyskyt = { prieceleId: f.id, motivId: DATA.motivy.length ? DATA.motivy[0].id : "" };
+      const dostupneMotivy = motivyForBudova(b);
+      S.addingVyskyt = { prieceleId: f.id, motivId: dostupneMotivy.length ? dostupneMotivy[0].id : "" };
     }
     render();
   };
@@ -1217,10 +1227,10 @@ function renderAssignMotivPanel(b, f, v){
     <h2 class="title" style="font-size:22px">${esc(v.nazov || "bez názvu")}</h2>
     <div class="empty">Tento výskyt zatiaľ nemá priradený motív z katalógu.</div>
     <h3 class="sec">Priradiť motív</h3>
-    ${DATA.motivy.length
+    ${motivyForBudova(b).length
       ? `<select class="in" id="sp-assign-motiv">
           <option value="" selected disabled>— vyber motív —</option>
-          ${DATA.motivy.map(m=>`<option value="${esc(m.id)}">${esc(motivLabel(m))}</option>`).join("")}
+          ${motivyForBudova(b).map(m=>`<option value="${esc(m.id)}">${esc(motivLabel(m))}</option>`).join("")}
         </select>
         <p class="hint">Po priradení motívu sa otvorí jeho karta s fotkou a údajmi.</p>`
       : `<p class="hint">Katalóg motívov je zatiaľ prázdny. Najprv pridaj motív v zozname Motívy.</p>`}
@@ -1257,7 +1267,7 @@ function renderMotivDetailPanel(m, ctx){
     ${ctx ? `
     <h3 class="sec">Toto sgrafito na priečelí ${esc(facadeLabel(ctx.b, ctx.f))}</h3>
     <select class="in" id="sp-vyskyt-reassign-motiv">
-      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
+      ${motivyForBudova(ctx.b, m.id).map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
     </select>
     <p class="hint" style="margin-top:6px">Zmenou výberu preradíš toto konkrétne sgrafito k inému motívu v katalógu.</p>
     ` : ""}
