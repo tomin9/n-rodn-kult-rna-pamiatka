@@ -436,7 +436,7 @@ async function boot(){
   const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|vyskyty)$/);
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
   if(mml) goMotivDetail(mml[1]);
   else if(mm) goMotiv(mm[1]);
@@ -531,7 +531,8 @@ function goList(name){
 function activeTab(){
   if(S.route.list==="budovy" || S.route.budova) return "budovy";
   if(S.route.list==="umelci" || S.route.umelec) return "umelci";
-  if(S.route.list==="motivy" || S.route.motiv || S.route.list==="vyskyty") return "motivy";
+  if(S.route.list==="motivy" || S.route.motiv) return "motivy";
+  if(S.route.list==="diela") return "diela";
   return "prehlad";
 }
 function updateTabs(){
@@ -542,7 +543,7 @@ function updateTabs(){
 }
 function wireTabs(){
   appRoot.querySelectorAll("[data-tab]").forEach(btn=>{
-    btn.onclick = ()=> goList(btn.dataset.tab==="prehlad" ? null : btn.dataset.tab);
+    btn.onclick = ()=> goList(btn.dataset.tab);
   });
 }
 window.addEventListener("hashchange", ()=>{
@@ -570,7 +571,7 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|vyskyty)$/);
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
   if(ml){
     if(S.route.list !== ml[1] || S.route.budova || S.route.umelec){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, list:ml[1]};
@@ -645,7 +646,7 @@ function render(){
     if(S.route.list==="budovy") renderBudovyList();
     else if(S.route.list==="umelci") renderUmelciList();
     else if(S.route.list==="motivy") renderMotivyList();
-    else if(S.route.list==="vyskyty") renderVyskytyList();
+    else if(S.route.list==="diela") renderDielaList();
     else renderPrehlad();
   }
   updateTabs();
@@ -836,8 +837,7 @@ function renderMotivyList(){
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
     ${editToggle}
     ${DATA.motivy.length ? groupsHtml : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
-    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu. <a data-go="list:vyskyty" tabindex="0">Zobraziť zoznam všetkých výskytov</a>.</p>` : ""}
-    <p class="hint"><a data-go="list:vyskyty" tabindex="0">Zobraziť databázu všetkých výskytov (budova, priečelie, motív, umelec)</a>.</p>
+    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu. <a data-go="list:diela" tabindex="0">Zobraziť v zozname Diela</a>.</p>` : ""}
     ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
@@ -886,7 +886,7 @@ function wireMotivyList(){
     render();
   };
 }
-function renderVyskytyList(){
+function renderDielaList(){
   const rows = [];
   DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
     rows.push({b, f, v});
@@ -910,9 +910,9 @@ function renderVyskytyList(){
     </button></li>`;
   };
 
-  panel.innerHTML = crumb([{t:"výskyty"}]) + `<div class="pad">
+  panel.innerHTML = crumb([{t:"diela"}]) + `<div class="pad">
     <p class="eyebrow">Databáza</p>
-    <h2 class="title">Všetky výskyty <span class="kod">${rows.length}</span></h2>
+    <h2 class="title">Diela <span class="kod">${rows.length}</span></h2>
     ${bezMotivuCount ? `<p class="hint" style="color:var(--survey)">${bezMotivuCount}× bez priradeného motívu — sú na začiatku zoznamu nižšie.</p>` : ""}
     ${rows.length ? `<ul class="list">${rows.map(itemHtml).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne výskyty.</div>`}
   </div>`;
