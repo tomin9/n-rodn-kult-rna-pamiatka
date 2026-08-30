@@ -174,8 +174,8 @@ async function loadFromSupabase(){
   }
   DATA.budovy = (budovyRows||[]).map(row=>({
     id: row.id, kod: row.kod, nazov: row.nazov||"", adresa: row.adresa||"",
-    rok: row.rok||"", architekt: row.architekt||"", typ: row.typ||"bytový dom",
-    ochrana: row.ochrana||"", zateplenie: row.zateplenie||"", stav: row.stav||"",
+    rok: row.rok||"", oznacenie: row.oznacenie||"", typ: row.typ||"bytový dom",
+    zateplenie: row.zateplenie||"", stav: row.stav||"",
     popis: row.popis||"", poly: row.poly, podklady: row.podklady||[],
     priecelia: (prieceliaRows||[]).filter(f=>f.budova_id===row.id).map(f=>({
       id: f.id, edgeIndex: f.edge_index, smer: f.smer, dlzka: f.dlzka,
@@ -187,7 +187,7 @@ async function loadFromSupabase(){
 
 function budovaRow(b){
   return { id:b.id, kod:b.kod, nazov:b.nazov, adresa:b.adresa, rok:b.rok,
-    architekt:b.architekt, typ:b.typ, ochrana:b.ochrana, zateplenie:b.zateplenie,
+    oznacenie:b.oznacenie, typ:b.typ, zateplenie:b.zateplenie,
     stav:b.stav, popis:b.popis, poly:b.poly, podklady:b.podklady,
     updated_at:new Date().toISOString() };
 }
@@ -547,11 +547,10 @@ function renderBudova(b){
     <input class="in" data-path="nazov" value="${esc(b.nazov)}" placeholder="Názov domu" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
     <h3 class="sec">Základné údaje</h3>
     <table class="meta">
+      ${fieldRow("Pôvodné označenie", b.oznacenie, "oznacenie")}
       ${fieldRow("Adresa", b.adresa, "adresa")}
       ${fieldRow("Rok výstavby", b.rok, "rok")}
-      ${fieldRow("Architekt / projektant", b.architekt, "architekt")}
       ${fieldRow("Typ objektu", b.typ, "typ")}
-      ${fieldRow("Pamiatková ochrana", b.ochrana, "ochrana")}
       ${fieldRow("Zateplenie", b.zateplenie, "zateplenie")}
       ${fieldRow("Stav", b.stav, "stav")}
     </table>
