@@ -483,6 +483,11 @@ function budovaStats(b){
   }));
   return { priecelia: b.priecelia.length, motivov: motivy.size, diel };
 }
+function facadeStats(f){
+  const motivy = new Set();
+  f.vyskyty.forEach(v=>{ if(v.motivId) motivy.add(v.motivId); });
+  return { motivov: motivy.size, diel: f.vyskyty.length };
+}
 function facadeLabel(b, f){
   const i = b.priecelia.indexOf(f);
   return "P" + (i>=0 ? i+1 : "?");
@@ -655,7 +660,7 @@ function selectRow(label, val, path, options){
     ${options.map(o=>`<option value="${esc(o)}"${val===o?" selected":""}>${esc(o)}</option>`).join("")}
   </select></td></tr>`;
 }
-function miniPlan(b, activeId){
+function miniPlan(b, activeId, legendHtml){
   const local = toLocalPoly(b.poly);
   const xs=local.map(p=>p[0]), ys=local.map(p=>p[1]);
   const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
@@ -679,7 +684,7 @@ function miniPlan(b, activeId){
         <text x="0" y="-7" text-anchor="middle">S</text>
       </g>
     </svg>
-    <div class="legend">Klikni na stranu domu<br>a označíš ju ako<br>priečelie.<br><br>${b.priecelia.length} určených priečelí<br>skutočný kompas</div>
+    <div class="legend">${legendHtml||""}</div>
   </div>`;
 }
 function budovaTabsHtml(activeTab){
@@ -692,7 +697,6 @@ function budovaTabsHtml(activeTab){
   </div>`;
 }
 function renderBudova(b){
-  const totalVyskytov = b.priecelia.reduce((s,f)=>s+f.vyskyty.length,0);
   const tab = S.budovaTab || "zakladne";
   const editing = !!S.budovaEdit;
   const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
@@ -730,14 +734,17 @@ function renderBudova(b){
     </table>
     ${b.popis ? `<h3 class="sec">Popis</h3><p class="lead" style="font-size:14px">${esc(b.popis)}</p>` : ""}`;
 
+  const bs = budovaStats(b);
   const prieceliaTab = `
-    <h3 class="sec">Priečelia <span class="kod">${totalVyskytov} výskytov</span></h3>
-    ${miniPlan(b, null)}
-    ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>`
-      <li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
+    <h3 class="sec">Priečelia</h3>
+    ${miniPlan(b, null, `${bs.motivov} motívov<br>${bs.diel} diel`)}
+    ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>{
+        const fs = facadeStats(f);
+        return `<li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
         <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
-        <span class="fdir">${esc(f.smer)} · ${f.dlzka} m${f.vyzdoba?" · "+esc(f.vyzdoba):""} · ${f.vyskyty.length} výskytov</span>
-      </button></li>`).join("")}</ul>`
+        <span class="fdir">${fs.motivov} motívov · ${fs.diel} diel</span>
+      </button></li>`;
+      }).join("")}</ul>`
       : `<div class="empty">Zatiaľ žiadne priečelie nie je určené. Klikni na stranu domu v mape alebo v pôdoryse vyššie.</div>`}`;
 
   const groupedB = {};
