@@ -107,6 +107,11 @@ async function saveVyskyt(v, prieceleId){
   const {error} = await sb.from("vyskyty").upsert(vyskytRow(v, prieceleId));
   if(error) console.error("Uloženie výskytu zlyhalo:", error.message);
 }
+function clearMotivFromVyskyty(motivId){
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===motivId){ v.motivId=""; saveVyskyt(v, f.id); }
+  })));
+}
 const saveBudovaDebounced = makeKeyedDebounce(saveBudova, 700);
 const savePrieceliaDebounced = makeKeyedDebounce(savePriecelie, 700);
 const saveMotivDebounced = makeKeyedDebounce(saveMotiv, 500);
@@ -431,7 +436,7 @@ async function boot(){
   const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|vyskyty)$/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
   if(mml) goMotivDetail(mml[1]);
   else if(mm) goMotiv(mm[1]);
@@ -526,7 +531,7 @@ function goList(name){
 function activeTab(){
   if(S.route.list==="budovy" || S.route.budova) return "budovy";
   if(S.route.list==="umelci" || S.route.umelec) return "umelci";
-  if(S.route.list==="motivy" || S.route.motiv) return "motivy";
+  if(S.route.list==="motivy" || S.route.motiv || S.route.list==="vyskyty") return "motivy";
   return "prehlad";
 }
 function updateTabs(){
@@ -565,7 +570,7 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|vyskyty)$/);
   if(ml){
     if(S.route.list !== ml[1] || S.route.budova || S.route.umelec){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, list:ml[1]};
@@ -640,6 +645,7 @@ function render(){
     if(S.route.list==="budovy") renderBudovyList();
     else if(S.route.list==="umelci") renderUmelciList();
     else if(S.route.list==="motivy") renderMotivyList();
+    else if(S.route.list==="vyskyty") renderVyskytyList();
     else renderPrehlad();
   }
   updateTabs();
@@ -830,7 +836,8 @@ function renderMotivyList(){
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
     ${editToggle}
     ${DATA.motivy.length ? groupsHtml : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
-    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu.</p>` : ""}
+    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu. <a data-go="list:vyskyty" tabindex="0">Zobraziť zoznam všetkých výskytov</a>.</p>` : ""}
+    <p class="hint"><a data-go="list:vyskyty" tabindex="0">Zobraziť databázu všetkých výskytov (budova, priečelie, motív, umelec)</a>.</p>
     ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
@@ -862,7 +869,7 @@ function wireMotivyList(){
     el.onclick = ()=>{
       const id = el.dataset.mdel;
       DATA.motivy = DATA.motivy.filter(x=>x.id!==id);
-      DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===id) v.motivId=""; })));
+      clearMotivFromVyskyty(id);
       deleteMotivRemote(id);
       render();
     };
@@ -878,6 +885,38 @@ function wireMotivyList(){
     saveMotiv(m);
     render();
   };
+}
+function renderVyskytyList(){
+  const rows = [];
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    rows.push({b, f, v});
+  })));
+  rows.sort((x,y)=>{
+    const xu = x.v.motivId ? 1 : 0, yu = y.v.motivId ? 1 : 0;
+    if(xu !== yu) return xu - yu;
+    const bc = (x.b.kod||x.b.id).localeCompare(y.b.kod||y.b.id, "sk");
+    if(bc) return bc;
+    return facadeLabel(x.b,x.f).localeCompare(facadeLabel(y.b,y.f), "sk");
+  });
+  const bezMotivuCount = rows.filter(r=>!r.v.motivId).length;
+
+  const itemHtml = ({b,f,v})=>{
+    const m = v.motivId ? DATA.motivy.find(x=>x.id===v.motivId) : null;
+    const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
+    const label = m ? motivLabel(m) : (v.nazov ? v.nazov+" — bez motívu" : "bez motívu");
+    return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
+      <span class="fname"${!m?' style="color:var(--survey)"':""}>${esc(label)}</span>
+      <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}${u?" · "+esc(u.meno):""}</span>
+    </button></li>`;
+  };
+
+  panel.innerHTML = crumb([{t:"výskyty"}]) + `<div class="pad">
+    <p class="eyebrow">Databáza</p>
+    <h2 class="title">Všetky výskyty <span class="kod">${rows.length}</span></h2>
+    ${bezMotivuCount ? `<p class="hint" style="color:var(--survey)">${bezMotivuCount}× bez priradeného motívu — sú na začiatku zoznamu nižšie.</p>` : ""}
+    ${rows.length ? `<ul class="list">${rows.map(itemHtml).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne výskyty.</div>`}
+  </div>`;
+  wire();
 }
 function fieldRow(label, val, path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-path="${path}" value="${esc(val)}"></td></tr>`;
@@ -1287,7 +1326,7 @@ function wireMotivDetailPanel(m, ctx){
   const delBtn = detailPanel.querySelector("#del-motivdetail");
   if(delBtn) delBtn.onclick = ()=>{
     DATA.motivy = DATA.motivy.filter(x=>x.id!==m.id);
-    DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===m.id) v.motivId=""; })));
+    clearMotivFromVyskyty(m.id);
     deleteMotivRemote(m.id);
     goList("motivy");
   };
@@ -1370,7 +1409,7 @@ function wireMotiv(m){
   const delBtn = panel.querySelector("#del-motiv");
   if(delBtn) delBtn.onclick = ()=>{
     DATA.motivy = DATA.motivy.filter(x=>x.id!==m.id);
-    DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===m.id) v.motivId=""; })));
+    clearMotivFromVyskyty(m.id);
     deleteMotivRemote(m.id);
     goList("motivy");
   };
