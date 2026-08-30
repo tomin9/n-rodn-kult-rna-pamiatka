@@ -234,7 +234,7 @@ function syncPriecelia(b){
     const e = edgeInfo(b.poly, ei);
     if(!s.edgeLL) changed = true;
     const nf = {
-      id: s.id || ("f"+ei), edgeIndex: ei,
+      id: s.id || ("f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), edgeIndex: ei,
       smer: e.smer, dlzka: e.lenM,
       nazov: s.nazov || "", popis: s.popis || "", vyzdoba: s.vyzdoba || "",
       autor: s.autor || "", rok: s.rok || "", stav: s.stav || "",
@@ -257,7 +257,7 @@ function toggleEdge(b, edgeIndex){
   if(existing){ go(b.id, existing.id); return; }
   const e = edgeInfo(b.poly, edgeIndex);
   const nf = {
-    id:"f"+edgeIndex, edgeIndex, smer:e.smer, dlzka:e.lenM,
+    id: "f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), edgeIndex, smer:e.smer, dlzka:e.lenM,
     nazov:"", popis:"", vyzdoba:"", autor:"", rok:"", stav:"", podklady:[],
     fotoUrl:"", vyskyty:[], edgeLL: edgeLLOf(b.poly, edgeIndex), unresolved:false
   };
