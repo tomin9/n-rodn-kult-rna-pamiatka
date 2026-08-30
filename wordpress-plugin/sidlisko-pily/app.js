@@ -226,7 +226,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false, reassignPriecelie:null };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -384,7 +384,7 @@ function go(budovaId, prieceleId, vyskytId, opts){
   const zmenaPriecelia = prieceleId !== S.route.priecelie;
   const zmenaMotivu = motivId !== S.route.motiv;
   if(zmenaBudovy){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
-  if(zmenaPriecelia) S.priecelieEdit = false;
+  if(zmenaPriecelia){ S.priecelieEdit = false; S.reassignPriecelie = null; }
   if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
   S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, motiv:motivId, list:null};
   try{
@@ -956,6 +956,7 @@ function photoBlock(f, activeVyskytId, addingMode){
 function renderPriecelie(b, f, activeVid){
   const adding = S.addingVyskyt && S.addingVyskyt.prieceleId===f.id;
   const editing = !!S.priecelieEdit;
+  const reassigning = S.reassignPriecelie === f.id;
   const grouped = {};
   const standalone = [];
   f.vyskyty.forEach(v=>{
@@ -999,6 +1000,10 @@ function renderPriecelie(b, f, activeVid){
     </div>
     <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
     ` : ""}
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="sp-btn-reassign" aria-pressed="${reassigning}">${reassigning?"Zrušiť presun":"Presunúť na inú stranu domu"}</button>
+    </div>
+    ${reassigning ? miniPlan(b, f.id, "Klikni na stranu domu, kam chceš toto priečelie (aj s jeho motívmi) presunúť.") : ""}
     <div class="row" style="margin-top:12px"><button class="btn warn" id="del-f">Zrušiť toto priečelie</button></div>
     ` : ""}
 
@@ -1055,6 +1060,32 @@ function wirePriecelie(b, f){
   panel.querySelectorAll("[data-mid]").forEach(el=>{
     if(el.tagName==="BUTTON") el.onclick = ()=> goPrieceliaMotiv(b.id, f.id, el.dataset.mid);
   });
+  const reassignBtn = panel.querySelector("#sp-btn-reassign");
+  if(reassignBtn) reassignBtn.onclick = ()=>{
+    S.reassignPriecelie = (S.reassignPriecelie === f.id) ? null : f.id;
+    render();
+  };
+  if(S.reassignPriecelie === f.id){
+    panel.querySelectorAll(".fhit-mini").forEach(el=>{
+      el.onclick = ()=> reassignPriecelieToEdge(b, f, +el.dataset.edge);
+    });
+  }
+}
+function reassignPriecelieToEdge(b, f, edgeIndex){
+  if(edgeIndex === f.edgeIndex){ S.reassignPriecelie = null; render(); return; }
+  const existing = findFacadeByEdge(b, edgeIndex);
+  if(existing){
+    alert("Na tejto strane domu už existuje iné priečelie. Najprv ho zruš alebo presuň inam.");
+    return;
+  }
+  const e = edgeInfo(b.poly, edgeIndex);
+  f.edgeIndex = edgeIndex;
+  f.smer = e.smer;
+  f.dlzka = e.lenM;
+  savePriecelie(f, b.id);
+  S.reassignPriecelie = null;
+  if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+  render();
 }
 function renderAssignMotivPanel(b, f, v){
   detailPanel.innerHTML = `<div class="pad">
