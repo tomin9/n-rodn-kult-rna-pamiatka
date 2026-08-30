@@ -478,6 +478,15 @@ function render(){
 function budovaLabel(b){
   return b.nazov || b.adresa || b.kod || b.id;
 }
+function budovaStats(b){
+  let diel = 0;
+  const motivy = new Set();
+  b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    diel++;
+    if(v.motivId) motivy.add(v.motivId);
+  }));
+  return { priecelia: b.priecelia.length, motivov: motivy.size, diel };
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -525,9 +534,10 @@ function renderBudovyList(){
     ${n ? `<ul class="list">${DATA.budovy.map(b=>{
         const label = budovaLabel(b);
         const kodInFdir = label !== (b.kod||b.id);
+        const s = budovaStats(b);
         return `<li><button class="fitem" data-b="${b.id}">
         <span class="fname">${esc(label)}</span>
-        <span class="fdir">${kodInFdir?esc(b.kod)+" · ":""}${b.priecelia.length} priečelí</span>
+        <span class="fdir">${kodInFdir?esc(b.kod)+" · ":""}${s.priecelia} priečelí · ${s.motivov} motívov · ${s.diel} diel</span>
       </button></li>`;
       }).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne domy.</div>`}
   </div>`;
