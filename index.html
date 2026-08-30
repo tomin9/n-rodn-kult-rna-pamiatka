@@ -373,21 +373,37 @@ function facadesFC(){
 
 let draw;
 async function boot(){
-  await loadFromSupabase();
+  try{
+    await loadFromSupabase();
+  }catch(err){
+    console.error("Načítanie zo Supabase zlyhalo:", err);
+    document.getElementById("mapnote").innerHTML = "Chyba pri načítaní databázy: " + err.message;
+    return;
+  }
   DATA.budovy.forEach(syncPriecelia);
 
   const fitBounds = computeFitBounds();
-  map = new mapboxgl.Map({
-    container: "map",
-    style: "mapbox://styles/tomin9/cle5ygem4004h01qge9x73z3q",
-    center: fitBounds ? undefined : DEFAULT_CENTER,
-    zoom: fitBounds ? undefined : 15,
-    bounds: fitBounds || undefined,
-    fitBoundsOptions: fitBounds ? { padding: 60 } : undefined
-  });
+  const initialCenter = fitBounds
+    ? [(fitBounds[0][0]+fitBounds[1][0])/2, (fitBounds[0][1]+fitBounds[1][1])/2]
+    : DEFAULT_CENTER;
+
+  try{
+    map = new mapboxgl.Map({
+      container: "map",
+      style: "mapbox://styles/tomin9/cle5ygem4004h01qge9x73z3q",
+      center: initialCenter,
+      zoom: 15
+    });
+  }catch(err){
+    console.error("Vytvorenie mapy zlyhalo:", err);
+    document.getElementById("map").innerHTML =
+      '<div style="padding:20px;font-family:monospace;color:#d0342c">Mapu sa nepodarilo vytvoriť: ' + err.message + '</div>';
+    return;
+  }
   map.addControl(new mapboxgl.NavigationControl({showCompass:false}), "bottom-right");
 
   map.on("load", ()=>{
+  if(fitBounds) map.fitBounds(fitBounds, {padding:60, duration:0});
   map.addSource("buildings", {type:"geojson", data:buildingsFC()});
   map.addSource("labels", {type:"geojson", data:labelsFC()});
   map.addSource("facades", {type:"geojson", data:facadesFC()});
