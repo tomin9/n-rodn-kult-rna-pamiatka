@@ -40,6 +40,9 @@ async function loadFromSupabase(){
       nazov: f.nazov||"", popis: f.popis||"", vyzdoba: f.vyzdoba||"",
       autor: f.autor||"", rok: f.rok||"", stav: f.stav||"", podklady: f.podklady||[],
       fotoUrl: f.foto_url||"",
+      edgeLL: (f.edge_lng1!=null && f.edge_lat1!=null && f.edge_lng2!=null && f.edge_lat2!=null)
+        ? [[f.edge_lng1, f.edge_lat1],[f.edge_lng2, f.edge_lat2]]
+        : null,
       vyskyty: (vyskytyRows||[]).filter(v=>v.priecelie_id===f.id).map(v=>({
         id: v.id, motivId: v.motiv_id||"", nazov: v.nazov||"", x: v.x, y: v.y,
         velkost: v.velkost||"", vrstvy: v.vrstvy||"", stav: v.stav||"",
@@ -59,9 +62,12 @@ function budovaRow(b){
     updated_at:new Date().toISOString() };
 }
 function prieceliaRow(f, budovaId){
+  const ll = f.edgeLL || [[null,null],[null,null]];
   return { id:f.id, budova_id:budovaId, edge_index:f.edgeIndex, smer:f.smer, dlzka:f.dlzka,
     nazov:f.nazov, popis:f.popis, vyzdoba:f.vyzdoba, autor:f.autor, rok:f.rok, stav:f.stav,
-    podklady:f.podklady, foto_url:f.fotoUrl||null, updated_at:new Date().toISOString() };
+    podklady:f.podklady, foto_url:f.fotoUrl||null,
+    edge_lng1: ll[0][0], edge_lat1: ll[0][1], edge_lng2: ll[1][0], edge_lat2: ll[1][1],
+    updated_at:new Date().toISOString() };
 }
 function motivRow(m){
   return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, foto_url:m.fotoUrl||null, updated_at:new Date().toISOString() };
@@ -169,33 +175,74 @@ function edgeInfo(polyLL, i){
   const smer = SMERY[Math.round(deg/45) % 8];
   return {smer, deg: Math.round(deg), lenM: Math.round(len)};
 }
+function edgeLLOf(poly, i){
+  return [poly[i], poly[(i+1)%poly.length]];
+}
+function llDistanceMeters(p1, p2, refLng, refLat){
+  const [x1,y1] = localXY(p1[0], p1[1], refLng, refLat);
+  const [x2,y2] = localXY(p2[0], p2[1], refLng, refLat);
+  return Math.hypot(x2-x1, y2-y1);
+}
+function findMatchingEdge(poly, edgeLL, refLng, refLat){
+  if(!edgeLL) return null;
+  const [sa, sc] = edgeLL;
+  let best = null, bestDist = Infinity;
+  for(let i=0;i<poly.length;i++){
+    const a = poly[i], c = poly[(i+1)%poly.length];
+    const d1 = llDistanceMeters(a, sa, refLng, refLat) + llDistanceMeters(c, sc, refLng, refLat);
+    const d2 = llDistanceMeters(a, sc, refLng, refLat) + llDistanceMeters(c, sa, refLng, refLat);
+    const d = Math.min(d1, d2);
+    if(d < bestDist){ bestDist = d; best = i; }
+  }
+  return bestDist <= 3 ? best : null; // 3 m tolerancia
+}
 function syncPriecelia(b){
   const stare = b.priecelia || [];
-  b.priecelia = stare
-    .map(s=>{
-      let ei = s.edgeIndex;
-      if(ei === undefined || ei === null){
-        const m = String(s.id||"").match(/^f(\d+)$/);
-        ei = m ? +m[1] : null;
-      }
-      return {...s, edgeIndex: ei};
-    })
-    .filter(s=>{
-      const ok = Number.isInteger(s.edgeIndex) && s.edgeIndex >= 0 && s.edgeIndex < b.poly.length;
-      if(!ok) console.warn("Priečelie vyradené (nesedí edgeIndex s tvarom budovy):", {budova: b.kod||b.id, priecelieId: s.id, edgeIndex: s.edgeIndex, pocetVrcholovPoly: b.poly.length});
-      return ok;
-    })
-    .map(s=>{
-      const e = edgeInfo(b.poly, s.edgeIndex);
-      return {
-        id: s.id || ("f"+s.edgeIndex), edgeIndex: s.edgeIndex,
-        smer: e.smer, dlzka: e.lenM,
+  const [refLng, refLat] = b.poly[0];
+  const toSave = [];
+  const result = [];
+  stare.forEach(s=>{
+    let ei = s.edgeIndex;
+    if(ei === undefined || ei === null){
+      const m = String(s.id||"").match(/^f(\d+)$/);
+      ei = m ? +m[1] : null;
+    }
+    let changed = false;
+    const matched = findMatchingEdge(b.poly, s.edgeLL, refLng, refLat);
+    if(matched !== null && matched !== ei){
+      console.warn("Priečelie preradené na inú stranu (podľa uloženej geometrie steny):", {budova: b.kod||b.id, priecelieId: s.id, staryIndex: ei, novyIndex: matched});
+      ei = matched;
+      changed = true;
+    }
+    const valid = Number.isInteger(ei) && ei >= 0 && ei < b.poly.length;
+    if(!valid){
+      console.warn("Priečelie sa nedá spoľahlivo umiestniť na aktuálny tvar budovy — zostáva v zozname ako nepriradené:", {budova: b.kod||b.id, priecelieId: s.id, edgeIndex: ei, pocetVrcholovPoly: b.poly.length});
+      result.push({
+        id: s.id, edgeIndex: null, smer: s.smer || "", dlzka: s.dlzka || 0,
         nazov: s.nazov || "", popis: s.popis || "", vyzdoba: s.vyzdoba || "",
         autor: s.autor || "", rok: s.rok || "", stav: s.stav || "",
         podklady: s.podklady || [], fotoUrl: s.fotoUrl || "",
+        edgeLL: s.edgeLL || null, unresolved: true,
         vyskyty: s.vyskyty || []
-      };
-    });
+      });
+      return;
+    }
+    const e = edgeInfo(b.poly, ei);
+    if(!s.edgeLL) changed = true;
+    const nf = {
+      id: s.id || ("f"+ei), edgeIndex: ei,
+      smer: e.smer, dlzka: e.lenM,
+      nazov: s.nazov || "", popis: s.popis || "", vyzdoba: s.vyzdoba || "",
+      autor: s.autor || "", rok: s.rok || "", stav: s.stav || "",
+      podklady: s.podklady || [], fotoUrl: s.fotoUrl || "",
+      edgeLL: edgeLLOf(b.poly, ei), unresolved: false,
+      vyskyty: s.vyskyty || []
+    };
+    result.push(nf);
+    if(changed) toSave.push(nf);
+  });
+  b.priecelia = result;
+  toSave.forEach(nf=> savePriecelie(nf, b.id));
   return b;
 }
 function findFacadeByEdge(b, edgeIndex){
@@ -208,7 +255,7 @@ function toggleEdge(b, edgeIndex){
   const nf = {
     id:"f"+edgeIndex, edgeIndex, smer:e.smer, dlzka:e.lenM,
     nazov:"", popis:"", vyzdoba:"", autor:"", rok:"", stav:"", podklady:[],
-    fotoUrl:"", vyskyty:[]
+    fotoUrl:"", vyskyty:[], edgeLL: edgeLLOf(b.poly, edgeIndex), unresolved:false
   };
   b.priecelia.push(nf);
   savePriecelie(nf, b.id);
@@ -896,8 +943,9 @@ function renderBudova(b){
     ${miniPlan(b, null, `${bs.motivov} motívov<br>${bs.diel} diel`)}
     ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>{
         const fs = facadeStats(f);
+        const label = f.nazov || (SMER_NAZOV[f.smer] ? SMER_NAZOV[f.smer]+" priečelie" : "priečelie");
         return `<li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
-        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
+        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(label)}${f.unresolved?' <span style="color:var(--survey)">· nepriradené k strane domu</span>':""}</span>
         <span class="fdir">${fs.motivov} motívov · ${fs.diel} diel</span>
       </button></li>`;
       }).join("")}</ul>`
@@ -983,6 +1031,7 @@ function renderPriecelie(b, f, activeVid){
 
   panel.innerHTML = crumb([{t:b.kod||b.id, go:b.id, red:true},{t:facadeLabel(b,f)}]) + `<div class="pad">
     ${budovaTabsHtml("priecelia")}
+    ${f.unresolved ? `<div class="empty" style="border-color:var(--survey);color:var(--survey)">Toto priečelie sa nepodarilo umiestniť na správnu stranu domu (napr. po zmene tvaru budovy). Údaje a motívy zostali zachované — klikni na Editovať a použi "Presunúť na inú stranu domu".</div>` : ""}
     ${photoBlock(f, activeVid||null, !!adding)}
     <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
       <a data-priecelie-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
@@ -1085,6 +1134,8 @@ function reassignPriecelieToEdge(b, f, edgeIndex){
   f.edgeIndex = edgeIndex;
   f.smer = e.smer;
   f.dlzka = e.lenM;
+  f.edgeLL = edgeLLOf(b.poly, edgeIndex);
+  f.unresolved = false;
   savePriecelie(f, b.id);
   S.reassignPriecelie = null;
   if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
