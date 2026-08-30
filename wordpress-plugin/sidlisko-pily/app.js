@@ -497,6 +497,12 @@ function vyskytTitle(v){
   if(m) return m.nazov || "bez názvu";
   return v.nazov || "bez názvu";
 }
+function motivLabel(m){
+  if(!m) return "neznámy motív";
+  const u = DATA.umelci.find(x=>x.id===m.umelecId);
+  const nazov = m.nazov || "bez názvu";
+  return u ? `${u.meno} – ${nazov}` : nazov;
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -585,25 +591,43 @@ function wireUmelciList(){
 function renderMotivyList(){
   const counts = motivCountsAll();
   const totalVyskytov = Object.values(counts).reduce((a,c)=>a+c,0);
-  const motivyZoradene = [...DATA.motivy].sort((a,b)=> (counts[b.id]||0)-(counts[a.id]||0));
   const bezMotivu = counts[""] || 0;
+
+  const motivItemHtml = m => `<li style="display:block">
+    <div class="row" style="margin:0;align-items:center">
+      <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
+      <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
+      <select class="in" style="flex:0 0 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
+        <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
+        ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
+      </select>
+      <span class="fdir" style="flex:0 0 auto">${counts[m.id]||0}×</span>
+      <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
+    </div>
+  </li>`;
+
+  // Group by artist, sorted by artist name; unassigned last
+  const groups = {};
+  DATA.motivy.forEach(m=>{ const k=m.umelecId||""; (groups[k]||(groups[k]=[])).push(m); });
+  const sortedKeys = Object.keys(groups).filter(k=>k).sort((a,b)=>{
+    const ua=DATA.umelci.find(x=>x.id===a), ub=DATA.umelci.find(x=>x.id===b);
+    return (ua?ua.meno:"").localeCompare(ub?ub.meno:"", "sk");
+  });
+  if(groups[""]) sortedKeys.push("");
+
+  const groupsHtml = sortedKeys.map(key=>{
+    const u = key ? DATA.umelci.find(x=>x.id===key) : null;
+    const motList = [...groups[key]].sort((a,b)=>(counts[b.id]||0)-(counts[a.id]||0));
+    const header = (u || DATA.umelci.length)
+      ? `<h3 class="sec">${esc(u?u.meno:"Bez umelca")} <span class="kod">${motList.length}</span></h3>`
+      : "";
+    return header + `<ul class="list">${motList.map(motivItemHtml).join("")}</ul>`;
+  }).join("");
 
   panel.innerHTML = crumb([{t:"motívy"}]) + `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
-    ${motivyZoradene.length ? `<ul class="list">${motivyZoradene.map(m=>`
-      <li style="display:block">
-        <div class="row" style="margin:0;align-items:center">
-          <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
-          <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
-          <select class="in" style="flex:0 0 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
-            <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
-            ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
-          </select>
-          <span class="fdir" style="flex:0 0 auto">${counts[m.id]||0}×</span>
-          <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
-        </div>
-      </li>`).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
+    ${DATA.motivy.length ? groupsHtml : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
     ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu.</p>` : ""}
     <div class="row">
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
@@ -621,6 +645,7 @@ function wireMotivyList(){
       if(!m) return;
       m[el.dataset.mfield] = el.value;
       saveMotivDebounced(m.id, m);
+      if(el.dataset.mfield==="umelecId") render();
     };
   });
   panel.querySelectorAll("[data-mdel]").forEach(el=>{
@@ -757,7 +782,7 @@ function renderBudova(b){
     <h3 class="sec">Motívy na budove <span class="kod">${groupedBKeys.length + standaloneB.length}</span></h3>
     ${(groupedBKeys.length || standaloneB.length) ? `<ul class="list">${groupedBKeys.map(mid=>{
         const m = DATA.motivy.find(x=>x.id===mid);
-        return `<li><span style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:"neznámy motív")}</span><span class="fdir">${groupedB[mid]}×</span></li>`;
+        return `<li><span style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m ? motivLabel(m) : "neznámy motív")}</span><span class="fdir">${groupedB[mid]}×</span></li>`;
       }).join("")}${standaloneB.map(({f,v})=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
@@ -807,7 +832,7 @@ function renderPriecelie(b, f){
   const summary = (groupedKeys.length || standalone.length)
     ? `<ul class="list">${groupedKeys.map(mid=>{
         const m = DATA.motivy.find(x=>x.id===mid);
-        return `<li><span><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m?m.nazov:'neznámy motív')}</span><span class="fdir">${grouped[mid]}×</span></li>`;
+        return `<li><span><span class="mchip" style="--mc:${esc(m?m.farba:'#8d939a')}"></span>${esc(m ? motivLabel(m) : 'neznámy motív')}</span><span class="fdir">${grouped[mid]}×</span></li>`;
       }).join("")}${standalone.map(v=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
@@ -828,7 +853,7 @@ function renderPriecelie(b, f){
     <div class="row" style="align-items:center">
       <select class="in" id="sp-adding-motiv" style="flex:1;min-width:160px">
         <option value=""${!S.addingVyskyt.motivId?" selected":""}>— bez motívu —</option>
-        ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(m.nazov)}</option>`).join("")}
+        ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
       </select>
     </div>
     <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
@@ -901,7 +926,7 @@ function renderVyskyt(b, f, v){
     <h3 class="sec">Motív</h3>
     <select class="in" id="sp-vyskyt-motiv">
       <option value=""${!v.motivId?" selected":""}>— samostatné sgrafito (nie je súčasťou opakovaného motívu) —</option>
-      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(mo.nazov)}</option>`).join("")}
+      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
     </select>
     ${!v.motivId ? `
     <h3 class="sec">Názov sgrafita</h3>
