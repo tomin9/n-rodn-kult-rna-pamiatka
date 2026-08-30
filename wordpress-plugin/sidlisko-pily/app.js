@@ -696,7 +696,7 @@ function renderBudova(b){
       ${fieldRow("Rok výstavby", b.rok, "rok")}
       ${fieldRow("Typ objektu", b.typ, "typ")}
       ${selectRow("Zateplenie", b.zateplenie, "zateplenie", ZATEPLENIE_MOZNOSTI)}
-      ${umelecSelectRow("Umelec (sgrafitá/reliéfy)", b.umelecId, "umelecId")}
+      ${umelecSelectRow("Umelec", b.umelecId, "umelecId")}
     </table>
     ${b.umelecId ? `<p class="hint">Profil umelca: ${umelecView}</p>` : ""}
     <h3 class="sec">Popis</h3>
@@ -709,7 +709,7 @@ function renderBudova(b){
       ${viewRow("Rok výstavby", esc(b.rok))}
       ${viewRow("Typ objektu", esc(b.typ))}
       ${viewRow("Zateplenie", esc(b.zateplenie))}
-      ${viewRow("Umelec (sgrafitá/reliéfy)", umelecView)}
+      ${viewRow("Umelec", umelecView)}
     </table>
     ${b.popis ? `<h3 class="sec">Popis</h3><p class="lead" style="font-size:14px">${esc(b.popis)}</p>` : ""}`;
 
