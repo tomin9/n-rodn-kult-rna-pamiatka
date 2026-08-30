@@ -88,7 +88,10 @@ function makeKeyedDebounce(fn, ms){
   };
 }
 async function saveBudova(b){
-  const {error} = await sb.from("budovy").upsert(budovaRow(b));
+  // update (nie upsert): budovy sa v appke nikdy nevytvárajú, len importujú/upravujú.
+  // Keďže riadok zámerne neobsahuje "poly" (pozri budovaRow), upsert by pri vkladaní
+  // kandidátneho riadku zlyhal na "poly" NOT NULL - update tento stĺpec vôbec nerieši.
+  const {error} = await sb.from("budovy").update(budovaRow(b)).eq("id", b.id);
   if(error) console.error("Uloženie domu zlyhalo:", error.message);
 }
 async function savePriecelie(f, budovaId){
