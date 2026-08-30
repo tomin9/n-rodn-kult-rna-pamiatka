@@ -688,9 +688,9 @@ function renderBudova(b){
   const viewRow = (label, html)=> `<tr><th>${esc(label)}</th><td>${html || `<span class="muted">—</span>`}</td></tr>`;
 
   const zakladneTab = editing ? `
-    <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
     ${editToggle}
     <table class="meta">
+      <tr><th>Budova</th><td><input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></td></tr>
       ${fieldRow("Pôvodné označenie", b.oznacenie, "oznacenie")}
       ${fieldRow("Adresa", b.adresa, "adresa")}
       ${fieldRow("Rok výstavby", b.rok, "rok")}
@@ -701,9 +701,9 @@ function renderBudova(b){
     ${b.umelecId ? `<p class="hint">Profil umelca: ${umelecView}</p>` : ""}
     <h3 class="sec">Popis</h3>
     <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>` : `
-    <p class="eyebrow">Budova <input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></p>
     ${editToggle}
     <table class="meta">
+      <tr><th>Budova</th><td><input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></td></tr>
       ${viewRow("Pôvodné označenie", esc(b.oznacenie))}
       ${viewRow("Adresa", esc(b.adresa))}
       ${viewRow("Rok výstavby", esc(b.rok))}
