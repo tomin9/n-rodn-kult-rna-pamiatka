@@ -222,7 +222,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -367,7 +367,9 @@ function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
   const zmenaBudovy = budovaId !== S.route.budova;
+  const zmenaPriecelia = prieceleId !== S.route.priecelie;
   if(zmenaBudovy){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
+  if(zmenaPriecelia) S.priecelieEdit = false;
   S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, list:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
@@ -848,6 +850,7 @@ function photoBlock(f, activeVyskytId, addingMode){
 }
 function renderPriecelie(b, f){
   const adding = S.addingVyskyt && S.addingVyskyt.prieceleId===f.id;
+  const editing = !!S.priecelieEdit;
   const grouped = {};
   const standalone = [];
   f.vyskyty.forEach(v=>{
@@ -871,10 +874,13 @@ function renderPriecelie(b, f){
 
   panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:facadeLabel(b,f)}]) + `<div class="pad">
     ${budovaTabsHtml("priecelia")}
-    <h3 class="sec">Fotografia a výskyty sgrafít <span class="kod">${f.vyskyty.length}</span></h3>
     ${photoBlock(f, null, !!adding)}
+    <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
+      <a data-priecelie-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+    </div>
+    ${editing ? `
+    <input type="file" id="sp-upload-foto" accept="image/*" hidden>
     <div class="row">
-      <input type="file" id="sp-upload-foto" accept="image/*" hidden>
       <button class="btn ghost" id="sp-btn-upload-foto">${f.fotoUrl?"Nahrať inú fotku":"Nahrať fotku priečelia"}</button>
       ${f.fotoUrl ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>` : ""}
     </div>
@@ -887,11 +893,11 @@ function renderPriecelie(b, f){
     </div>
     <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
     ` : ""}
+    <div class="row" style="margin-top:12px"><button class="btn warn" id="del-f">Zrušiť toto priečelie</button></div>
+    ` : ""}
 
     <h3 class="sec">Motívy na tomto priečelí</h3>
     ${summary}
-
-    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-f">Zrušiť toto priečelie</button></div>
   </div>`;
   wire(b,f);
   wirePriecelie(b,f);
@@ -1204,6 +1210,10 @@ function wire(b, f, v){
   });
   panel.querySelectorAll("[data-edit-toggle]").forEach(el=>{
     el.onclick = ()=>{ S.budovaEdit = !S.budovaEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  panel.querySelectorAll("[data-priecelie-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.priecelieEdit = !S.priecelieEdit; if(!S.priecelieEdit) S.addingVyskyt=null; render(); };
     el.onkeydown = e => { if(e.key==="Enter") el.click(); };
   });
   panel.querySelectorAll(".fhit-mini").forEach(el=>{ el.onclick = ()=> toggleEdge(b, +el.dataset.edge); });
