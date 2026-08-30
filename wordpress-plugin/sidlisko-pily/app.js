@@ -1074,7 +1074,7 @@ function miniPlan(b, activeId, legendHtml){
 }
 function budovaTabsHtml(b, activeTab){
   const btn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${activeTab===key}">${esc(label)}</button>`;
-  const nameTab = `<span class="tool" style="cursor:default;background:var(--ink);color:var(--paper);border-color:var(--ink)">${esc(b.kod||b.id)}</span>`;
+  const nameTab = `<span style="display:flex;align-items:center;font-family:var(--sans);font-weight:700;font-size:14px;padding:5px 4px 5px 0">${esc(b.kod||b.id)}</span>`;
   return `<div class="row" style="margin-top:0">
     ${nameTab}
     ${btn("zakladne","Základné údaje")}
