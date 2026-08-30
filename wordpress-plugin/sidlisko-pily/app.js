@@ -194,7 +194,11 @@ function findMatchingEdge(poly, edgeLL, refLng, refLat){
     const d = Math.min(d1, d2);
     if(d < bestDist){ bestDist = d; best = i; }
   }
-  return bestDist <= 3 ? best : null; // 3 m tolerancia
+  // Prísna tolerancia: má chytiť iba zaokrúhľovanie pri prenose súradníc,
+  // nie skutočne odlišné (aj keď blízke) steny — pri cik-cakovitých domoch
+  // s množstvom krátkych susediacich úsekov by voľnejšia tolerancia vedela
+  // priečelie omylom priradiť na susednú stenu.
+  return bestDist <= 0.3 ? best : null;
 }
 function syncPriecelia(b){
   const stare = b.priecelia || [];
