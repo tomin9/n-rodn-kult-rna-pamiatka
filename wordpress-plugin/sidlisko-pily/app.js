@@ -222,7 +222,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, vyskytEdit:false, motivyEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, vyskytEdit:false, motivyEdit:false, motivDetailEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -343,11 +343,13 @@ async function boot(){
   });
 
   render(); note();
+  const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
   const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  if(mm) goMotiv(mm[1]);
+  if(mml) goMotivDetail(mml[1]);
+  else if(mm) goMotiv(mm[1]);
   else if(mu) goUmelec(mu[1]);
   else if(ml) goList(ml[1]);
   else if(m) go(m[1], m[2]||null, m[3]||null, {noFit:true});
@@ -394,6 +396,14 @@ function goMotiv(motivId){
   render();
   panel.scrollTop = 0;
 }
+function goMotivDetail(motivId){
+  const zmenaMotivu = motivId !== S.route.motiv || S.route.list !== "motivy";
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:motivId, list:"motivy"};
+  try{ location.hash = "#/motivy/"+motivId; }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
+}
 function goUmelec(umelecId){
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
   try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
@@ -426,6 +436,14 @@ function wireTabs(){
   });
 }
 window.addEventListener("hashchange", ()=>{
+  const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
+  if(mml){
+    if(S.route.motiv !== mml[1] || S.route.list !== "motivy"){
+      S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:mml[1], list:"motivy"};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   if(mm){
     if(S.route.motiv !== mm[1]){
@@ -471,7 +489,18 @@ function render(){
   let handled = false;
   if(S.route.motiv){
     const m = DATA.motivy.find(x=>x.id===S.route.motiv);
-    if(m){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderMotiv(m); handled = true; }
+    if(m){
+      if(S.route.list==="motivy"){
+        appRoot.classList.add("has-detail");
+        renderMotivyList();
+        renderMotivDetailPanel(m);
+      } else {
+        appRoot.classList.remove("has-detail");
+        detailPanel.innerHTML="";
+        renderMotiv(m);
+      }
+      handled = true;
+    }
   }
   if(!handled && S.route.umelec){
     const u = DATA.umelci.find(x=>x.id===S.route.umelec);
@@ -559,6 +588,19 @@ function motivCountsAll(){
   })));
   return counts;
 }
+function motivStats(motivId){
+  const budovySet = new Set();
+  const prieceliaSet = new Set();
+  let diel = 0;
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===motivId){
+      budovySet.add(b.id);
+      prieceliaSet.add(f.id);
+      diel++;
+    }
+  })));
+  return { budov: budovySet.size, priecelia: prieceliaSet.size, diel };
+}
 function renderPrehlad(){
   const n = DATA.budovy.length;
   const counts = motivCountsAll();
@@ -630,9 +672,14 @@ function renderMotivyList(){
   const bezMotivu = counts[""] || 0;
   const editing = !!S.motivyEdit;
 
+  const motivStatsLabel = m => {
+    const st = motivStats(m.id);
+    return `${st.budov} ${st.budov===1?"dome":"domoch"} · ${st.priecelia} ${st.priecelia===1?"priečelí":"priečeliach"} · ${st.diel}×`;
+  };
+
   const motivItemView = m => `<li><button class="fitem" data-mid="${esc(m.id)}">
-      <span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(motivLabel(m))}</span>
-      <span class="fdir">${counts[m.id]||0}×</span>
+      <span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov || "bez názvu")}</span>
+      <span class="fdir">${motivStatsLabel(m)}</span>
     </button></li>`;
 
   const motivItemEdit = m => `<li style="display:block">
@@ -643,7 +690,7 @@ function renderMotivyList(){
         <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
         ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
       </select>
-      <span class="fdir" style="flex:0 0 auto">${counts[m.id]||0}×</span>
+      <span class="fdir" style="flex:0 0 auto">${motivStatsLabel(m)}</span>
       <button class="btn ghost" data-mid="${esc(m.id)}" title="Detail motívu">→</button>
       <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
     </div>
@@ -693,6 +740,9 @@ function wireMotivyList(){
   panel.querySelectorAll("[data-motivy-edit-toggle]").forEach(el=>{
     el.onclick = ()=>{ S.motivyEdit = !S.motivyEdit; render(); };
     el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  panel.querySelectorAll("[data-mid]").forEach(el=>{
+    if(el.tagName==="BUTTON") el.onclick = ()=> goMotivDetail(el.dataset.mid);
   });
   panel.querySelectorAll("[data-mfield]").forEach(el=>{
     el.oninput = ()=>{
@@ -1068,6 +1118,85 @@ function wireVyskytDetail(b, f, v){
     deleteVyskytRemote(v.id);
     go(b.id, f.id, null);
   };
+}
+function renderMotivDetailPanel(m){
+  const editing = !!S.motivDetailEdit;
+  const u = DATA.umelci.find(x=>x.id===m.umelecId);
+  const st = motivStats(m.id);
+  const vyskyty = [];
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===m.id) vyskyty.push({b, f, v});
+  })));
+
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">${u?esc(u.meno):"Bez umelca"}</p>
+    <h2 class="title" style="font-size:22px">${esc(m.nazov || "bez názvu")}</h2>
+    ${m.fotoUrl
+      ? `<div class="photo-wrap" style="margin-top:8px"><img src="${esc(m.fotoUrl)}" alt="Fotografia motívu"></div>`
+      : `<div class="empty">Zatiaľ žiadna fotografia motívu.</div>`}
+    <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
+      <a data-motivdetail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+    </div>
+    ${editing ? `
+    <input type="file" id="sp-upload-motivdetail-foto" accept="image/*" hidden>
+    <div class="row">
+      <button class="btn ghost" id="sp-btn-upload-motivdetail-foto">${m.fotoUrl?"Nahrať inú fotku":"Nahrať fotku motívu"}</button>
+    </div>
+    <h3 class="sec">Názov</h3>
+    <input class="in" id="sp-motivdetail-nazov" value="${esc(m.nazov)}" placeholder="Názov motívu">
+    <h3 class="sec">Farba</h3>
+    <input type="color" class="in" id="sp-motivdetail-farba" style="flex:0 0 40px;padding:2px" value="${esc(m.farba)}">
+    <h3 class="sec">Umelec</h3>
+    <select class="in" id="sp-motivdetail-umelec">
+      <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
+      ${DATA.umelci.map(uu=>`<option value="${esc(uu.id)}"${m.umelecId===uu.id?" selected":""}>${esc(uu.meno)}</option>`).join("")}
+    </select>
+    <h3 class="sec">Popis</h3>
+    <textarea class="in" id="sp-motivdetail-popis" placeholder="Technika, rozmer, farebnosť…">${esc(m.popis)}</textarea>
+    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-motivdetail">Zmazať motív</button></div>
+    ` : ""}
+
+    <h3 class="sec">Výskyty <span class="kod">${st.diel}</span></h3>
+    <p class="hint" style="margin-top:0">${st.budov} domov · ${st.priecelia} priečelí</p>
+    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v},i)=>{
+        const fLabel = facadeLabel(b, f);
+        return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
+          <span class="fname">${esc(b.kod||b.id)} / ${esc(fLabel)}</span>
+          <span class="fdir">#${i+1}</span>
+        </button></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt.</div>`}
+  </div>`;
+  wireMotivDetailPanel(m);
+}
+function wireMotivDetailPanel(m){
+  detailPanel.querySelectorAll("[data-motivdetail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.motivDetailEdit = !S.motivDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  wireUpload(
+    detailPanel.querySelector("#sp-btn-upload-motivdetail-foto"),
+    detailPanel.querySelector("#sp-upload-motivdetail-foto"),
+    async (file)=>{ const url = await uploadToStorage(file); m.fotoUrl = url; saveMotiv(m); render(); }
+  );
+  const nazovEl = detailPanel.querySelector("#sp-motivdetail-nazov");
+  if(nazovEl) nazovEl.oninput = ()=>{ m.nazov = nazovEl.value; saveMotivDebounced(m.id, m); };
+  const farbaEl = detailPanel.querySelector("#sp-motivdetail-farba");
+  if(farbaEl) farbaEl.oninput = ()=>{ m.farba = farbaEl.value; saveMotivDebounced(m.id, m); };
+  const umelecEl = detailPanel.querySelector("#sp-motivdetail-umelec");
+  if(umelecEl) umelecEl.onchange = ()=>{ m.umelecId = umelecEl.value; saveMotiv(m); render(); };
+  const popisEl = detailPanel.querySelector("#sp-motivdetail-popis");
+  if(popisEl) popisEl.oninput = ()=>{ m.popis = popisEl.value; saveMotivDebounced(m.id, m); };
+  const delBtn = detailPanel.querySelector("#del-motivdetail");
+  if(delBtn) delBtn.onclick = ()=>{
+    DATA.motivy = DATA.motivy.filter(x=>x.id!==m.id);
+    DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===m.id) v.motivId=""; })));
+    deleteMotivRemote(m.id);
+    goList("motivy");
+  };
+  detailPanel.querySelectorAll(".fitem").forEach(el=>{
+    el.onclick = ()=> go(el.dataset.b, el.dataset.f||null, el.dataset.v||null);
+  });
 }
 function renderMotiv(m){
   const countsAll = motivCountsAll();
