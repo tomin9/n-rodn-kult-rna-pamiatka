@@ -285,7 +285,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false, reassignPriecelie:null };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false, reassignPriecelie:null, umelciEdit:false, umelecDetailEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -515,6 +515,7 @@ function goMotivDetail(motivId){
   render();
 }
 function goUmelec(umelecId){
+  if(umelecId !== S.route.umelec) S.umelecDetailEdit = false;
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
   try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
   if(map && map.isStyleLoaded()) refreshMapSelection();
@@ -759,23 +760,33 @@ function renderBudovyList(){
   wire();
 }
 function renderUmelciList(){
+  const editing = !!S.umelciEdit;
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelci-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
   panel.innerHTML = crumb([{t:"umelci"}]) + `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Umelci <span class="kod">${DATA.umelci.length}</span></h2>
+    ${editToggle}
     ${DATA.umelci.length ? `<ul class="list">${DATA.umelci.map(u=>`
       <li><button class="fitem" data-u="${esc(u.id)}">
         <span class="fname">${esc(u.meno || "bez mena")}</span>
         <span class="fdir">${motivyByUmelec(u.id).length} motívov · ${budovyByUmelec(u.id).length} domov</span>
       </button></li>`).join("")}</ul>` : `<div class="empty">Zatiaľ žiadni umelci. Pridaj prvého nižšie.</div>`}
+    ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-umelec-name" style="flex:1;min-width:140px" placeholder="meno umelca…">
       <button class="btn ghost" id="sp-new-umelec-add">+ Pridať umelca</button>
-    </div>
+    </div>` : ""}
   </div>`;
   wire();
   wireUmelciList();
 }
 function wireUmelciList(){
+  panel.querySelectorAll("[data-umelci-edit-toggle]").forEach(el=>{
+    el.onclick = ()=>{ S.umelciEdit = !S.umelciEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   const addUmelecBtn = panel.querySelector("#sp-new-umelec-add");
   if(addUmelecBtn) addUmelecBtn.onclick = ()=>{
     const nameInput = panel.querySelector("#sp-new-umelec-name");
@@ -1425,14 +1436,24 @@ function wireMotiv(m){
   };
 }
 function renderUmelec(u){
+  const editing = !!S.umelecDetailEdit;
   const motivyU = motivyByUmelec(u.id);
   const budovyU = budovyByUmelec(u.id);
   const countsAll = motivCountsAll();
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelec-detail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
   panel.innerHTML = crumb([{t:"umelci", go:"list:umelci"},{t:u.meno||"bez mena"}]) + `<div class="pad">
     <p class="eyebrow">Umelec</p>
+    ${editToggle}
+    ${editing ? `
     <input class="in" data-upath="meno" value="${esc(u.meno)}" placeholder="Meno umelca" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
     <h3 class="sec">Popis</h3>
     <textarea class="in" data-upath="popis" placeholder="Životopis, pôsobenie, poznámky…">${esc(u.popis)}</textarea>
+    ` : `
+    <h2 class="title" style="font-size:24px">${esc(u.meno || "bez mena")}</h2>
+    ${u.popis ? `<p class="lead" style="font-size:14px">${esc(u.popis)}</p>` : ""}
+    `}
 
     <h3 class="sec">Motívy tohto umelca <span class="kod">${motivyU.length}</span></h3>
     ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
@@ -1451,11 +1472,15 @@ function renderUmelec(u){
       }).join("")}</ul>`
       : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
 
-    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>
+    ${editing ? `<div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>` : ""}
   </div>`;
   wireUmelec(u);
 }
 function wireUmelec(u){
+  panel.querySelectorAll("[data-umelec-detail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.umelecDetailEdit = !S.umelecDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   panel.querySelectorAll("[data-go]").forEach(a=>{
     const t = a.dataset.go;
     a.onclick = ()=> t && t.indexOf("list:")===0 ? goList(t.slice(5)) : go(t || null, null, null);
@@ -1470,8 +1495,8 @@ function wireUmelec(u){
   const du = panel.querySelector("#del-u");
   if(du) du.onclick = ()=>{
     DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
-    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id) b.umelecId=""; });
-    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id) m.umelecId=""; });
+    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id){ b.umelecId=""; saveBudova(b); } });
+    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id){ m.umelecId=""; saveMotiv(m); } });
     deleteUmelecRemote(u.id);
     goUmelec(null);
   };
