@@ -6,31 +6,34 @@ const SUPABASE_KEY = "sb_publishable_XZ8zk7nHCCwavnBPFlwCWg_y44o5TTh";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STORAGE_BUCKET = "sidlisko-pily";
 
-const DATA = { budovy: [], motivy: [] };
+const DATA = { budovy: [], motivy: [], umelci: [] };
 
 async function loadFromSupabase(){
   const [
     {data: budovyRows, error: e1},
     {data: prieceliaRows, error: e2},
     {data: vyskytyRows, error: e3},
-    {data: motivyRows, error: e4}
+    {data: motivyRows, error: e4},
+    {data: umelciRows, error: e5}
   ] = await Promise.all([
     sb.from("budovy").select("*"),
     sb.from("priecelia").select("*"),
     sb.from("vyskyty").select("*"),
-    sb.from("motivy").select("*").order("nazov")
+    sb.from("motivy").select("*").order("nazov"),
+    sb.from("umelci").select("*").order("meno")
   ]);
-  if(e1 || e2 || e3 || e4){
-    alert("Nepodarilo sa načítať dáta z databázy: " + ((e1&&e1.message)||(e2&&e2.message)||(e3&&e3.message)||(e4&&e4.message)));
+  if(e1 || e2 || e3 || e4 || e5){
+    alert("Nepodarilo sa načítať dáta z databázy: " + ((e1&&e1.message)||(e2&&e2.message)||(e3&&e3.message)||(e4&&e4.message)||(e5&&e5.message)));
     return;
   }
+  DATA.umelci = (umelciRows||[]).map(r=>({ id: r.id, meno: r.meno||"", popis: r.popis||"" }));
   DATA.motivy = (motivyRows||[]).map(r=>({
-    id: r.id, nazov: r.nazov||"", farba: r.farba||"#8d939a", popis: r.popis||""
+    id: r.id, nazov: r.nazov||"", farba: r.farba||"#8d939a", popis: r.popis||"", umelecId: r.umelec_id||""
   }));
   DATA.budovy = (budovyRows||[]).map(row=>({
     id: row.id, kod: row.kod, nazov: row.nazov||"", adresa: row.adresa||"",
     rok: row.rok||"", oznacenie: row.oznacenie||"", typ: row.typ||"bytový dom",
-    zateplenie: row.zateplenie||"", stav: row.stav||"",
+    zateplenie: row.zateplenie||"", stav: row.stav||"", umelecId: row.umelec_id||"",
     popis: row.popis||"", poly: row.poly, podklady: row.podklady||[],
     priecelia: (prieceliaRows||[]).filter(f=>f.budova_id===row.id).map(f=>({
       id: f.id, edgeIndex: f.edge_index, smer: f.smer, dlzka: f.dlzka,
@@ -48,7 +51,7 @@ async function loadFromSupabase(){
 
 function budovaRow(b){
   return { id:b.id, kod:b.kod, nazov:b.nazov, adresa:b.adresa, rok:b.rok,
-    oznacenie:b.oznacenie, typ:b.typ, zateplenie:b.zateplenie,
+    oznacenie:b.oznacenie, typ:b.typ, zateplenie:b.zateplenie, umelec_id:b.umelecId||null,
     stav:b.stav, popis:b.popis, poly:b.poly, podklady:b.podklady,
     updated_at:new Date().toISOString() };
 }
@@ -58,7 +61,10 @@ function prieceliaRow(f, budovaId){
     podklady:f.podklady, foto_url:f.fotoUrl||null, updated_at:new Date().toISOString() };
 }
 function motivRow(m){
-  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, updated_at:new Date().toISOString() };
+  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, updated_at:new Date().toISOString() };
+}
+function umelecRow(u){
+  return { id:u.id, meno:u.meno, popis:u.popis, updated_at:new Date().toISOString() };
 }
 function vyskytRow(v, prieceleId){
   return { id:v.id, priecelie_id:prieceleId, motiv_id:v.motivId||null, x:v.x, y:v.y,
@@ -84,6 +90,10 @@ async function saveMotiv(m){
   const {error} = await sb.from("motivy").upsert(motivRow(m));
   if(error) console.error("Uloženie motívu zlyhalo:", error.message);
 }
+async function saveUmelec(u){
+  const {error} = await sb.from("umelci").upsert(umelecRow(u));
+  if(error) console.error("Uloženie umelca zlyhalo:", error.message);
+}
 async function saveVyskyt(v, prieceleId){
   const {error} = await sb.from("vyskyty").upsert(vyskytRow(v, prieceleId));
   if(error) console.error("Uloženie výskytu zlyhalo:", error.message);
@@ -92,6 +102,7 @@ const saveBudovaDebounced = makeKeyedDebounce(saveBudova, 700);
 const savePrieceliaDebounced = makeKeyedDebounce(savePriecelie, 700);
 const saveMotivDebounced = makeKeyedDebounce(saveMotiv, 500);
 const saveVyskytDebounced = makeKeyedDebounce(saveVyskyt, 700);
+const saveUmelecDebounced = makeKeyedDebounce(saveUmelec, 500);
 async function deleteBudovaRemote(id){
   const {error} = await sb.from("budovy").delete().eq("id", id);
   if(error) console.error("Zmazanie domu zlyhalo:", error.message);
@@ -103,6 +114,10 @@ async function deletePrieceliaRemote(id){
 async function deleteMotivRemote(id){
   const {error} = await sb.from("motivy").delete().eq("id", id);
   if(error) console.error("Zmazanie motívu zlyhalo:", error.message);
+}
+async function deleteUmelecRemote(id){
+  const {error} = await sb.from("umelci").delete().eq("id", id);
+  if(error) console.error("Zmazanie umelca zlyhalo:", error.message);
 }
 async function deleteVyskytRemote(id){
   const {error} = await sb.from("vyskyty").delete().eq("id", id);
@@ -211,7 +226,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null}, addingVyskyt:null };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null}, addingVyskyt:null };
 const panel = document.getElementById("sp-panel");
 
 const DEFAULT_CENTER = [18.6045, 48.7715];
@@ -334,8 +349,10 @@ async function boot(){
   });
 
   render(); note();
+  const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  if(m) go(m[1], m[2]||null, m[3]||null, {noFit:true});
+  if(mu) goUmelec(mu[1]);
+  else if(m) go(m[1], m[2]||null, m[3]||null, {noFit:true});
   });
 }
 boot();
@@ -352,7 +369,7 @@ function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
   const zmenaBudovy = budovaId !== S.route.budova;
-  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId};
+  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
     if(budovaId && prieceleId) h += "/prieceli/"+prieceleId;
@@ -367,10 +384,25 @@ function go(budovaId, prieceleId, vyskytId, opts){
   }
   panel.scrollTop = 0;
 }
+function goUmelec(umelecId){
+  S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null};
+  try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
+  if(map.isStyleLoaded()) refreshMapSelection();
+  render();
+  panel.scrollTop = 0;
+}
 window.addEventListener("hashchange", ()=>{
+  const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
+  if(mu){
+    if(S.route.umelec !== mu[1]){
+      S.route = {budova:null, priecelie:null, vyskyt:null, umelec:mu[1]};
+      if(map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
   const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null} : {budova:null, priecelie:null, vyskyt:null};
-  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt){
+  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null, umelec:null} : {budova:null, priecelie:null, vyskyt:null, umelec:null};
+  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt || S.route.umelec){
     S.route = want; if(map.isStyleLoaded()) refreshMapSelection(); render();
   }
 });
@@ -384,12 +416,22 @@ document.addEventListener("keydown", e=>{
    PANEL
    ========================================================================= */
 function render(){
+  if(S.route.umelec){
+    const u = DATA.umelci.find(x=>x.id===S.route.umelec);
+    if(u) return renderUmelec(u);
+  }
   const b = DATA.budovy.find(x=>x.id===S.route.budova);
   if(!b) return renderPrehlad();
   const f = b.priecelia.find(x=>x.id===S.route.priecelie);
   if(!f) return renderBudova(b);
   const v = f.vyskyty.find(x=>x.id===S.route.vyskyt);
   return v ? renderVyskyt(b,f,v) : renderPriecelie(b,f);
+}
+function motivyByUmelec(umelecId){
+  return DATA.motivy.filter(m=>m.umelecId===umelecId);
+}
+function budovyByUmelec(umelecId){
+  return DATA.budovy.filter(b=>b.umelecId===umelecId);
 }
 function crumb(parts){
   return `<nav class="crumb">${parts.map((p,i)=>
@@ -423,6 +465,10 @@ function renderPrehlad(){
         <div class="row" style="margin:0;align-items:center">
           <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
           <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
+          <select class="in" style="flex:0 0 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
+            <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
+            ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
+          </select>
           <span class="fdir" style="flex:0 0 auto">${counts[m.id]||0}×</span>
           <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
         </div>
@@ -432,6 +478,17 @@ function renderPrehlad(){
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
       <input type="color" class="in" id="sp-new-motiv-color" style="flex:0 0 40px;padding:2px" value="#8d939a">
       <button class="btn ghost" id="sp-new-motiv-add">+ Pridať motív</button>
+    </div>
+
+    <h3 class="sec">Umelci <span class="kod">${DATA.umelci.length}</span></h3>
+    ${DATA.umelci.length ? `<ul class="list">${DATA.umelci.map(u=>`
+      <li><button class="fitem" data-u="${esc(u.id)}">
+        <span class="fname">${esc(u.meno || "bez mena")}</span>
+        <span class="fdir">${motivyByUmelec(u.id).length} motívov · ${budovyByUmelec(u.id).length} domov</span>
+      </button></li>`).join("")}</ul>` : `<div class="empty">Zatiaľ žiadni umelci. Pridaj prvého nižšie.</div>`}
+    <div class="row">
+      <input class="in" id="sp-new-umelec-name" style="flex:1;min-width:140px" placeholder="meno umelca…">
+      <button class="btn ghost" id="sp-new-umelec-add">+ Pridať umelca</button>
     </div>
 
     <h3 class="sec">Zaznamenané domy <span class="kod">${n}</span></h3>
@@ -468,14 +525,30 @@ function wirePrehlad(){
     const colorInput = panel.querySelector("#sp-new-motiv-color");
     const nazov = (nameInput.value||"").trim();
     if(!nazov){ nameInput.focus(); return; }
-    const m = { id:"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nazov, farba: colorInput.value||"#8d939a", popis:"" };
+    const m = { id:"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nazov, farba: colorInput.value||"#8d939a", popis:"", umelecId:"" };
     DATA.motivy.push(m);
     saveMotiv(m);
+    render();
+  };
+  const addUmelecBtn = panel.querySelector("#sp-new-umelec-add");
+  if(addUmelecBtn) addUmelecBtn.onclick = ()=>{
+    const nameInput = panel.querySelector("#sp-new-umelec-name");
+    const meno = (nameInput.value||"").trim();
+    if(!meno){ nameInput.focus(); return; }
+    const u = { id:"u"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), meno, popis:"" };
+    DATA.umelci.push(u);
+    saveUmelec(u);
     render();
   };
 }
 function fieldRow(label, val, path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-path="${path}" value="${esc(val)}"></td></tr>`;
+}
+function umelecSelectRow(label, val, path){
+  return `<tr><th>${esc(label)}</th><td><select class="in" data-path="${path}">
+    <option value=""${!val?" selected":""}>— bez umelca —</option>
+    ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${val===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
+  </select></td></tr>`;
 }
 function miniPlan(b, activeId){
   const local = toLocalPoly(b.poly);
@@ -517,7 +590,9 @@ function renderBudova(b){
       ${fieldRow("Typ objektu", b.typ, "typ")}
       ${fieldRow("Zateplenie", b.zateplenie, "zateplenie")}
       ${fieldRow("Stav", b.stav, "stav")}
+      ${umelecSelectRow("Umelec (sgrafitá/reliéfy)", b.umelecId, "umelecId")}
     </table>
+    ${b.umelecId ? `<p class="hint">Profil umelca: <a data-u="${esc(b.umelecId)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc((DATA.umelci.find(u=>u.id===b.umelecId)||{}).meno||"")}</a></p>` : ""}
     <h3 class="sec">Popis</h3>
     <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>
     <h3 class="sec">Priečelia <span class="kod">${totalVyskytov} výskytov</span></h3>
@@ -721,6 +796,54 @@ function wireVyskyt(b, f, v){
     });
   }
 }
+function renderUmelec(u){
+  const motivyU = motivyByUmelec(u.id);
+  const budovyU = budovyByUmelec(u.id);
+  const countsAll = motivCountsAll();
+  panel.innerHTML = crumb([{t:"prehľad", go:""},{t:"umelec"},{t:u.meno||"bez mena"}]) + `<div class="pad">
+    <p class="eyebrow">Umelec</p>
+    <input class="in" data-upath="meno" value="${esc(u.meno)}" placeholder="Meno umelca" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
+    <h3 class="sec">Popis</h3>
+    <textarea class="in" data-upath="popis" placeholder="Životopis, pôsobenie, poznámky…">${esc(u.popis)}</textarea>
+
+    <h3 class="sec">Motívy tohto umelca <span class="kod">${motivyU.length}</span></h3>
+    ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
+      <li><span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov||"bez názvu")}</span>
+        <span class="fdir">${countsAll[m.id]||0}× na sídlisku</span></li>`).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v prehľade sídliska.</div>`}
+
+    <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
+    ${budovyU.length ? `<ul class="list">${budovyU.map(b=>`
+      <li><button class="fitem" data-b="${esc(b.id)}">
+        <span class="fname">${esc(b.nazov || b.adresa || "bez názvu")}</span>
+        <span class="fdir">${esc(b.kod)}</span>
+      </button></li>`).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
+
+    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>
+  </div>`;
+  wireUmelec(u);
+}
+function wireUmelec(u){
+  panel.querySelectorAll("[data-go]").forEach(a=>{
+    a.onclick = ()=> go(a.dataset.go || null, null, null);
+    a.onkeydown = e => { if(e.key==="Enter") a.click(); };
+  });
+  panel.querySelectorAll("[data-upath]").forEach(el=>{
+    el.oninput = ()=>{ u[el.dataset.upath] = el.value; saveUmelecDebounced(u.id, u); };
+  });
+  panel.querySelectorAll(".fitem").forEach(el=>{
+    el.onclick = ()=> go(el.dataset.b, null, null);
+  });
+  const du = panel.querySelector("#del-u");
+  if(du) du.onclick = ()=>{
+    DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
+    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id) b.umelecId=""; });
+    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id) m.umelecId=""; });
+    deleteUmelecRemote(u.id);
+    goUmelec(null);
+  };
+}
 function fieldRow2(label,val,path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-fpath="${path}" value="${esc(val)}"></td></tr>`;
 }
@@ -778,6 +901,10 @@ function wire(b, f, v){
   });
   panel.querySelectorAll(".fitem").forEach(el=>{
     el.onclick = ()=> go(el.dataset.b, el.dataset.f || null, el.dataset.v || null);
+  });
+  panel.querySelectorAll("[data-u]").forEach(el=>{
+    el.onclick = ()=> goUmelec(el.dataset.u);
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
   });
   panel.querySelectorAll(".fhit-mini").forEach(el=>{ el.onclick = ()=> toggleEdge(b, +el.dataset.edge); });
   panel.querySelectorAll("[data-path]").forEach(el=>{
