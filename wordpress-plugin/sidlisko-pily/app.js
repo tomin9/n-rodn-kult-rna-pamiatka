@@ -50,9 +50,12 @@ async function loadFromSupabase(){
 }
 
 function budovaRow(b){
+  // poly (tvar budovy) sa v appke nikdy needituje, preto sa zámerne neposiela pri
+  // bežnom ukladaní — inak by zastaraná verzia v pamäti prehliadača mohla ticho
+  // prepísať tvar, ktorý bol medzičasom spresnený/zmenený inak (napr. importom).
   return { id:b.id, kod:b.kod, nazov:b.nazov, adresa:b.adresa, rok:b.rok,
     oznacenie:b.oznacenie, typ:b.typ, zateplenie:b.zateplenie, umelec_id:b.umelecId||null,
-    stav:b.stav, popis:b.popis, poly:b.poly, podklady:b.podklady,
+    stav:b.stav, popis:b.popis, podklady:b.podklady,
     updated_at:new Date().toISOString() };
 }
 function prieceliaRow(f, budovaId){
