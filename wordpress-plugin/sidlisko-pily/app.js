@@ -222,7 +222,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, vyskytEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, vyskytEdit:false, motivyEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
@@ -628,8 +628,14 @@ function renderMotivyList(){
   const counts = motivCountsAll();
   const totalVyskytov = Object.values(counts).reduce((a,c)=>a+c,0);
   const bezMotivu = counts[""] || 0;
+  const editing = !!S.motivyEdit;
 
-  const motivItemHtml = m => `<li style="display:block">
+  const motivItemView = m => `<li><button class="fitem" data-mid="${esc(m.id)}">
+      <span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(motivLabel(m))}</span>
+      <span class="fdir">${counts[m.id]||0}×</span>
+    </button></li>`;
+
+  const motivItemEdit = m => `<li style="display:block">
     <div class="row" style="margin:0;align-items:center">
       <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
       <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
@@ -642,6 +648,8 @@ function renderMotivyList(){
       <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
     </div>
   </li>`;
+
+  const motivItemHtml = editing ? motivItemEdit : motivItemView;
 
   // Group by artist, sorted by artist name; unassigned last
   const groups = {};
@@ -661,22 +669,32 @@ function renderMotivyList(){
     return header + `<ul class="list">${motList.map(motivItemHtml).join("")}</ul>`;
   }).join("");
 
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-motivy-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+
   panel.innerHTML = crumb([{t:"motívy"}]) + `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
+    ${editToggle}
     ${DATA.motivy.length ? groupsHtml : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
     ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu.</p>` : ""}
+    ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
       <input type="color" class="in" id="sp-new-motiv-color" style="flex:0 0 40px;padding:2px" value="#8d939a">
       <button class="btn ghost" id="sp-new-motiv-add">+ Pridať motív</button>
-    </div>
+    </div>` : ""}
   </div>`;
   wire();
   wireMotivyList();
 }
 function wireMotivyList(){
-  panel.querySelectorAll("[data-mid]").forEach(el=>{
+  panel.querySelectorAll("[data-motivy-edit-toggle]").forEach(el=>{
+    el.onclick = ()=>{ S.motivyEdit = !S.motivyEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  panel.querySelectorAll("[data-mfield]").forEach(el=>{
     el.oninput = ()=>{
       const m = DATA.motivy.find(x=>x.id===el.dataset.mid);
       if(!m) return;
