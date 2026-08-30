@@ -1403,13 +1403,6 @@ function renderMotivDetailPanel(m, ctx){
   detailPanel.innerHTML = `<div class="pad">
     <p class="eyebrow">${u?esc(u.meno):"Bez umelca"}</p>
     <h2 class="title" style="font-size:22px">${esc(m.nazov || "bez názvu")}</h2>
-    ${ctx ? `
-    <h3 class="sec">Toto sgrafito na priečelí ${esc(facadeLabel(ctx.b, ctx.f))}</h3>
-    <select class="in" id="sp-vyskyt-reassign-motiv">
-      ${motivyForBudova(ctx.b, m.id).map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
-    </select>
-    <p class="hint" style="margin-top:6px">Zmenou výberu preradíš toto konkrétne sgrafito k inému motívu v katalógu.</p>
-    ` : ""}
     ${m.fotoUrl
       ? `<div class="photo-wrap" style="margin-top:8px"><img src="${esc(m.fotoUrl)}" alt="Fotografia motívu"></div>`
       : `<div class="empty">Zatiaľ žiadna fotografia motívu.</div>`}
@@ -1417,6 +1410,13 @@ function renderMotivDetailPanel(m, ctx){
       <a data-motivdetail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
     </div>
     ${editing ? `
+    ${ctx ? `
+    <h3 class="sec">Toto sgrafito na priečelí ${esc(facadeLabel(ctx.b, ctx.f))}</h3>
+    <select class="in" id="sp-vyskyt-reassign-motiv">
+      ${motivyForBudova(ctx.b, m.id).map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
+    </select>
+    <p class="hint" style="margin-top:6px">Zmenou výberu preradíš toto konkrétne sgrafito k inému motívu v katalógu.</p>
+    ` : ""}
     <input type="file" id="sp-upload-motivdetail-foto" accept="image/*" hidden>
     <div class="row">
       <button class="btn ghost" id="sp-btn-upload-motivdetail-foto">${m.fotoUrl?"Nahrať inú fotku":"Nahrať fotku motívu"}</button>
