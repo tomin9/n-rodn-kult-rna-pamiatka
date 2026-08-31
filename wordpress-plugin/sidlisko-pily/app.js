@@ -386,16 +386,9 @@ async function boot(){
 
   map.addLayer({id:"facades-hit", type:"line", source:"facades",
     paint:{"line-width":18, "line-opacity":0}});
-  map.addLayer({id:"facades-active-halo", type:"line", source:"facades",
-    filter:["any",["get","active"],["all",["get","hover"],["get","isFacade"]]],
-    paint:{"line-color":["case",
-             ["get","active"], "#d0342c",
-             "#a0a09f"],
-           "line-width":16, "line-opacity":0.45, "line-blur":6}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
     paint:{"line-color":["case",
-             ["get","active"], "#d0342c",
-             ["all",["get","hover"],["get","isFacade"]], "#a0a09f",
+             ["get","active"], "#a0a09f",
              ["get","isFacade"], "#d0342c",
              "#b9b6ae"],
            "line-width":["case",
