@@ -120,10 +120,10 @@
 .sidlisko-pily-app .plan svg{background:var(--white);border:1px solid var(--line);flex:0 0 auto}
 .sidlisko-pily-app .plan .legend{font-family:var(--mono);font-size:11px;color:var(--ink-2);line-height:1.7}
 .sidlisko-pily-app .fedge{stroke:#c9c6bf;stroke-width:1.4;cursor:pointer;fill:none;stroke-linecap:round;stroke-dasharray:1 2.2}
-.sidlisko-pily-app .fedge:hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
+.sidlisko-pily-app .fedge:hover{stroke:#a0a09f;stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fedge.is-facade{stroke:var(--ink);stroke-width:3;stroke-dasharray:none}
 .sidlisko-pily-app .fedge.is-active{stroke:var(--survey);stroke-width:5;stroke-dasharray:none}
-.sidlisko-pily-app .fedge.is-hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-hover{stroke:#a0a09f;stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fhit-mini{stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
 .sidlisko-pily-app .plan .fill{fill:var(--ink);fill-opacity:.32;stroke:none}
 
