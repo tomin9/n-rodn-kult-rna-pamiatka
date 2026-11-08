@@ -40,28 +40,37 @@ async function loadFromSupabase(){
       nazov: f.nazov||"", popis: f.popis||"", vyzdoba: f.vyzdoba||"",
       autor: f.autor||"", rok: f.rok||"", stav: f.stav||"", podklady: f.podklady||[],
       fotoUrl: f.foto_url||"",
+      edgeLL: (f.edge_lng1!=null && f.edge_lat1!=null && f.edge_lng2!=null && f.edge_lat2!=null)
+        ? [[f.edge_lng1, f.edge_lat1],[f.edge_lng2, f.edge_lat2]]
+        : null,
       vyskyty: (vyskytyRows||[]).filter(v=>v.priecelie_id===f.id).map(v=>({
         id: v.id, motivId: v.motiv_id||"", nazov: v.nazov||"", x: v.x, y: v.y,
         velkost: v.velkost||"", vrstvy: v.vrstvy||"", stav: v.stav||"",
-        popis: v.popis||"", podklady: v.podklady||[]
+        popis: v.popis||"", podklady: v.podklady||[], fotoUrl: v.foto_url||""
       }))
     }))
   }));
 }
 
 function budovaRow(b){
+  // poly (tvar budovy) sa v appke nikdy needituje, preto sa zámerne neposiela pri
+  // bežnom ukladaní — inak by zastaraná verzia v pamäti prehliadača mohla ticho
+  // prepísať tvar, ktorý bol medzičasom spresnený/zmenený inak (napr. importom).
   return { id:b.id, kod:b.kod, nazov:b.nazov, adresa:b.adresa, rok:b.rok,
     oznacenie:b.oznacenie, typ:b.typ, zateplenie:b.zateplenie, umelec_id:b.umelecId||null,
-    stav:b.stav, popis:b.popis, poly:b.poly, podklady:b.podklady,
+    stav:b.stav, popis:b.popis, podklady:b.podklady,
     updated_at:new Date().toISOString() };
 }
 function prieceliaRow(f, budovaId){
+  const ll = f.edgeLL || [[null,null],[null,null]];
   return { id:f.id, budova_id:budovaId, edge_index:f.edgeIndex, smer:f.smer, dlzka:f.dlzka,
     nazov:f.nazov, popis:f.popis, vyzdoba:f.vyzdoba, autor:f.autor, rok:f.rok, stav:f.stav,
-    podklady:f.podklady, foto_url:f.fotoUrl||null, updated_at:new Date().toISOString() };
+    podklady:f.podklady, foto_url:f.fotoUrl||"",
+    edge_lng1: ll[0][0], edge_lat1: ll[0][1], edge_lng2: ll[1][0], edge_lat2: ll[1][1],
+    updated_at:new Date().toISOString() };
 }
 function motivRow(m){
-  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, foto_url:m.fotoUrl||null, updated_at:new Date().toISOString() };
+  return { id:m.id, nazov:m.nazov, farba:m.farba, popis:m.popis, umelec_id:m.umelecId||null, foto_url:m.fotoUrl||"", updated_at:new Date().toISOString() };
 }
 function umelecRow(u){
   return { id:u.id, meno:u.meno, popis:u.popis, updated_at:new Date().toISOString() };
@@ -69,7 +78,7 @@ function umelecRow(u){
 function vyskytRow(v, prieceleId){
   return { id:v.id, priecelie_id:prieceleId, motiv_id:v.motivId||null, nazov:v.nazov, x:v.x, y:v.y,
     velkost:v.velkost, vrstvy:v.vrstvy, stav:v.stav, popis:v.popis, podklady:v.podklady,
-    updated_at:new Date().toISOString() };
+    foto_url:v.fotoUrl||"", updated_at:new Date().toISOString() };
 }
 function makeKeyedDebounce(fn, ms){
   const timers = {};
@@ -79,7 +88,10 @@ function makeKeyedDebounce(fn, ms){
   };
 }
 async function saveBudova(b){
-  const {error} = await sb.from("budovy").upsert(budovaRow(b));
+  // update (nie upsert): budovy sa v appke nikdy nevytvárajú, len importujú/upravujú.
+  // Keďže riadok zámerne neobsahuje "poly" (pozri budovaRow), upsert by pri vkladaní
+  // kandidátneho riadku zlyhal na "poly" NOT NULL - update tento stĺpec vôbec nerieši.
+  const {error} = await sb.from("budovy").update(budovaRow(b)).eq("id", b.id);
   if(error) console.error("Uloženie domu zlyhalo:", error.message);
 }
 async function savePriecelie(f, budovaId){
@@ -97,6 +109,11 @@ async function saveUmelec(u){
 async function saveVyskyt(v, prieceleId){
   const {error} = await sb.from("vyskyty").upsert(vyskytRow(v, prieceleId));
   if(error) console.error("Uloženie výskytu zlyhalo:", error.message);
+}
+function clearMotivFromVyskyty(motivId){
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===motivId){ v.motivId=""; saveVyskyt(v, f.id); }
+  })));
 }
 const saveBudovaDebounced = makeKeyedDebounce(saveBudova, 700);
 const savePrieceliaDebounced = makeKeyedDebounce(savePriecelie, 700);
@@ -166,29 +183,78 @@ function edgeInfo(polyLL, i){
   const smer = SMERY[Math.round(deg/45) % 8];
   return {smer, deg: Math.round(deg), lenM: Math.round(len)};
 }
+function edgeLLOf(poly, i){
+  return [poly[i], poly[(i+1)%poly.length]];
+}
+function llDistanceMeters(p1, p2, refLng, refLat){
+  const [x1,y1] = localXY(p1[0], p1[1], refLng, refLat);
+  const [x2,y2] = localXY(p2[0], p2[1], refLng, refLat);
+  return Math.hypot(x2-x1, y2-y1);
+}
+function findMatchingEdge(poly, edgeLL, refLng, refLat){
+  if(!edgeLL) return null;
+  const [sa, sc] = edgeLL;
+  let best = null, bestDist = Infinity;
+  for(let i=0;i<poly.length;i++){
+    const a = poly[i], c = poly[(i+1)%poly.length];
+    const d1 = llDistanceMeters(a, sa, refLng, refLat) + llDistanceMeters(c, sc, refLng, refLat);
+    const d2 = llDistanceMeters(a, sc, refLng, refLat) + llDistanceMeters(c, sa, refLng, refLat);
+    const d = Math.min(d1, d2);
+    if(d < bestDist){ bestDist = d; best = i; }
+  }
+  // Prísna tolerancia: má chytiť iba zaokrúhľovanie pri prenose súradníc,
+  // nie skutočne odlišné (aj keď blízke) steny — pri cik-cakovitých domoch
+  // s množstvom krátkych susediacich úsekov by voľnejšia tolerancia vedela
+  // priečelie omylom priradiť na susednú stenu.
+  return bestDist <= 0.3 ? best : null;
+}
 function syncPriecelia(b){
   const stare = b.priecelia || [];
-  b.priecelia = stare
-    .map(s=>{
-      let ei = s.edgeIndex;
-      if(ei === undefined || ei === null){
-        const m = String(s.id||"").match(/^f(\d+)$/);
-        ei = m ? +m[1] : null;
-      }
-      return {...s, edgeIndex: ei};
-    })
-    .filter(s=> Number.isInteger(s.edgeIndex) && s.edgeIndex >= 0 && s.edgeIndex < b.poly.length)
-    .map(s=>{
-      const e = edgeInfo(b.poly, s.edgeIndex);
-      return {
-        id: s.id || ("f"+s.edgeIndex), edgeIndex: s.edgeIndex,
-        smer: e.smer, dlzka: e.lenM,
+  const [refLng, refLat] = b.poly[0];
+  const toSave = [];
+  const result = [];
+  stare.forEach(s=>{
+    let ei = s.edgeIndex;
+    if(ei === undefined || ei === null){
+      const m = String(s.id||"").match(/^f(\d+)$/);
+      ei = m ? +m[1] : null;
+    }
+    let changed = false;
+    const matched = findMatchingEdge(b.poly, s.edgeLL, refLng, refLat);
+    if(matched !== null && matched !== ei){
+      console.warn("Priečelie preradené na inú stranu (podľa uloženej geometrie steny):", {budova: b.kod||b.id, priecelieId: s.id, staryIndex: ei, novyIndex: matched});
+      ei = matched;
+      changed = true;
+    }
+    const valid = Number.isInteger(ei) && ei >= 0 && ei < b.poly.length;
+    if(!valid){
+      console.warn("Priečelie sa nedá spoľahlivo umiestniť na aktuálny tvar budovy — zostáva v zozname ako nepriradené:", {budova: b.kod||b.id, priecelieId: s.id, edgeIndex: ei, pocetVrcholovPoly: b.poly.length});
+      result.push({
+        id: s.id, edgeIndex: null, smer: s.smer || "", dlzka: s.dlzka || 0,
         nazov: s.nazov || "", popis: s.popis || "", vyzdoba: s.vyzdoba || "",
         autor: s.autor || "", rok: s.rok || "", stav: s.stav || "",
         podklady: s.podklady || [], fotoUrl: s.fotoUrl || "",
+        edgeLL: s.edgeLL || null, unresolved: true,
         vyskyty: s.vyskyty || []
-      };
-    });
+      });
+      return;
+    }
+    const e = edgeInfo(b.poly, ei);
+    if(!s.edgeLL) changed = true;
+    const nf = {
+      id: s.id || ("f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), edgeIndex: ei,
+      smer: e.smer, dlzka: e.lenM,
+      nazov: s.nazov || "", popis: s.popis || "", vyzdoba: s.vyzdoba || "",
+      autor: s.autor || "", rok: s.rok || "", stav: s.stav || "",
+      podklady: s.podklady || [], fotoUrl: s.fotoUrl || "",
+      edgeLL: edgeLLOf(b.poly, ei), unresolved: false,
+      vyskyty: s.vyskyty || []
+    };
+    result.push(nf);
+    if(changed) toSave.push(nf);
+  });
+  b.priecelia = result;
+  toSave.forEach(nf=> savePriecelie(nf, b.id));
   return b;
 }
 function findFacadeByEdge(b, edgeIndex){
@@ -199,9 +265,9 @@ function toggleEdge(b, edgeIndex){
   if(existing){ go(b.id, existing.id); return; }
   const e = edgeInfo(b.poly, edgeIndex);
   const nf = {
-    id:"f"+edgeIndex, edgeIndex, smer:e.smer, dlzka:e.lenM,
+    id: "f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), edgeIndex, smer:e.smer, dlzka:e.lenM,
     nazov:"", popis:"", vyzdoba:"", autor:"", rok:"", stav:"", podklady:[],
-    fotoUrl:"", vyskyty:[]
+    fotoUrl:"", vyskyty:[], edgeLL: edgeLLOf(b.poly, edgeIndex), unresolved:false
   };
   b.priecelia.push(nf);
   savePriecelie(nf, b.id);
@@ -222,12 +288,13 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 /* =========================================================================
    STAV a MAPA
    ========================================================================= */
-const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false };
+const S = { route:{budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:null}, addingVyskyt:null, budovaTab:"zakladne", budovaEdit:false, priecelieEdit:false, motivyEdit:false, motivDetailEdit:false, reassignPriecelie:null, umelciEdit:false, umelecDetailEdit:false };
 const panel = document.getElementById("sp-panel");
 const appRoot = panel.closest(".sidlisko-pily-app") || document;
 
 const DEFAULT_CENTER = [18.6045, 48.7715];
 let map;
+let hoveredEdgeIndex = null;
 
 function computeFitBounds(){
   if(!DATA.budovy.length) return null;
@@ -266,7 +333,7 @@ function facadesFC(){
       const f = findFacadeByEdge(b, i);
       return {
         type:"Feature",
-        properties:{ edgeIndex:i, isFacade: !!f, active: !!f && f.id===S.route.priecelie },
+        properties:{ edgeIndex:i, isFacade: !!f, active: !!f && f.id===S.route.priecelie, hover: i===hoveredEdgeIndex },
         geometry:{ type:"LineString", coordinates:[a,c] }
       };
     })
@@ -320,37 +387,69 @@ async function boot(){
   map.addLayer({id:"facades-hit", type:"line", source:"facades",
     paint:{"line-width":18, "line-opacity":0}});
   map.addLayer({id:"facades-line", type:"line", source:"facades",
-    paint:{"line-color":["case",["any",["get","active"],["get","isFacade"]],"#d0342c","#b9b6ae"],
-           "line-width":["case",["get","active"],5,["get","isFacade"],3.5,1.3],
+    paint:{"line-color":["case",
+             ["get","active"], "#a0a09f",
+             ["get","isFacade"], "#d0342c",
+             "#b9b6ae"],
+           "line-width":["case",
+             ["any",["get","active"],["all",["get","hover"],["get","isFacade"]]], 5,
+             ["get","isFacade"], 3.5, 1.3],
            "line-dasharray":["case",["get","isFacade"],["literal",[1]],["literal",[1,1.6]]]}});
 
-  map.on("mousemove","buildings-fill", ()=> map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave","buildings-fill", ()=> map.getCanvas().style.cursor = "");
-  map.on("click","buildings-fill", e=>{
-    const id = e.features[0].properties.id;
-    go(id, null);
+  function facadeHitAt(point){
+    const tol = 8;
+    const bbox = [[point.x-tol, point.y-tol],[point.x+tol, point.y+tol]];
+    const feats = map.queryRenderedFeatures(bbox, {layers:["facades-hit"]});
+    return feats.length ? feats[0] : null;
+  }
+  map.on("mousemove", e=>{
+    const b = DATA.budovy.find(x=>x.id===S.route.budova);
+    const facadeFeat = b ? facadeHitAt(e.point) : null;
+    if(facadeFeat){
+      map.getCanvas().style.cursor = "pointer";
+      const ei = facadeFeat.properties.edgeIndex;
+      if(hoveredEdgeIndex !== ei){
+        hoveredEdgeIndex = ei;
+        if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+      }
+      return;
+    }
+    if(hoveredEdgeIndex !== null){
+      hoveredEdgeIndex = null;
+      if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+    }
+    const bldHits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
+    map.getCanvas().style.cursor = bldHits.length ? "pointer" : "";
   });
   map.on("click", e=>{
-    const hits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
-    if(!hits.length) go(null, null);
-  });
-  map.on("mousemove","facades-hit", ()=> map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave","facades-hit", ()=> map.getCanvas().style.cursor = "");
-  map.on("click","facades-hit", e=>{
     const b = DATA.budovy.find(x=>x.id===S.route.budova);
-    if(!b) return;
-    toggleEdge(b, e.features[0].properties.edgeIndex);
+    if(b){
+      const facadeFeat = facadeHitAt(e.point);
+      if(facadeFeat){ toggleEdge(b, facadeFeat.properties.edgeIndex); return; }
+    }
+    const bldHits = map.queryRenderedFeatures(e.point, {layers:["buildings-fill"]});
+    if(bldHits.length){ go(bldHits[0].properties.id, null); return; }
+    go(null, null);
   });
 
   render(); note();
+  const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
+  const muc = location.hash.match(/^#\/umelci\/([^/]+)/);
   const mu = location.hash.match(/^#\/umelec\/([^/]+)/);
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
-  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  if(mm) goMotiv(mm[1]);
+  const mdi = location.hash.match(/^#\/diela\/([^/]+)/);
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
+  const mbu = location.hash.match(/^#\/budova\/([^/]+)\/umelec\/([^/]+)/);
+  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
+  if(mml) goMotivDetail(mml[1]);
+  else if(mm) goMotiv(mm[1]);
+  else if(muc){ goList("umelci"); goUmelec(muc[1]); }
   else if(mu) goUmelec(mu[1]);
+  else if(mdi){ goList("diela"); goDielo(mdi[1]); }
+  else if(mbu){ go(mbu[1], null, null, {noFit:true}); goUmelec(mbu[2]); }
   else if(ml) goList(ml[1]);
-  else if(m) go(m[1], m[2]||null, m[3]||null, {noFit:true});
+  else if(m && m[2] && m[3]) goPrieceliaMotiv(m[1], m[2], m[3]);
+  else if(m) go(m[1], m[2]||null, null, {noFit:true});
   });
 }
 boot();
@@ -366,15 +465,24 @@ function refreshMapSelection(){
 function go(budovaId, prieceleId, vyskytId, opts){
   vyskytId = vyskytId || null;
   opts = opts || {};
+  let motivId = null;
+  if(vyskytId){
+    const b0 = DATA.budovy.find(x=>x.id===budovaId);
+    const f0 = b0 && b0.priecelia.find(x=>x.id===prieceleId);
+    const v0 = f0 && f0.vyskyty.find(x=>x.id===vyskytId);
+    motivId = v0 ? (v0.motivId || null) : null;
+  }
   const zmenaBudovy = budovaId !== S.route.budova;
   const zmenaPriecelia = prieceleId !== S.route.priecelie;
+  const zmenaMotivu = motivId !== S.route.motiv;
   if(zmenaBudovy){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
-  if(zmenaPriecelia) S.priecelieEdit = false;
-  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, list:null};
+  if(zmenaPriecelia){ S.priecelieEdit = false; S.reassignPriecelie = null; }
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:vyskytId, umelec:null, motiv:motivId, list:null};
   try{
     let h = budovaId ? ("#/budova/"+budovaId) : "#/";
     if(budovaId && prieceleId) h += "/prieceli/"+prieceleId;
-    if(budovaId && prieceleId && vyskytId) h += "/vyskyt/"+vyskytId;
+    if(budovaId && prieceleId && motivId) h += "/motiv/"+motivId;
     location.hash = h;
   }catch(_){}
   if(map && map.isStyleLoaded()) refreshMapSelection();
@@ -385,6 +493,18 @@ function go(budovaId, prieceleId, vyskytId, opts){
   }
   panel.scrollTop = 0;
 }
+function goPrieceliaMotiv(budovaId, prieceleId, motivId){
+  const zmenaMotivu = motivId !== S.route.motiv || S.route.vyskyt;
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:budovaId, priecelie:prieceleId, vyskyt:null, umelec:null, motiv:motivId||null, list:null};
+  try{
+    let h = "#/budova/"+budovaId+"/prieceli/"+prieceleId;
+    if(motivId) h += "/motiv/"+motivId;
+    location.hash = h;
+  }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
+}
 function goMotiv(motivId){
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:motivId||null, list:null};
   try{ location.hash = motivId ? ("#/motiv/"+motivId) : "#/"; }catch(_){}
@@ -392,12 +512,38 @@ function goMotiv(motivId){
   render();
   panel.scrollTop = 0;
 }
+function goMotivDetail(motivId){
+  const zmenaMotivu = motivId !== S.route.motiv || S.route.list !== "motivy";
+  if(zmenaMotivu){ S.motivDetailEdit = false; const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:motivId, list:"motivy"};
+  try{ location.hash = "#/motivy/"+motivId; }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
+}
 function goUmelec(umelecId){
-  S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
-  try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
+  if(umelecId !== S.route.umelec) S.umelecDetailEdit = false;
+  if(umelecId && S.route.list==="umelci"){
+    S.route = {...S.route, umelec:umelecId, motiv:null};
+    try{ location.hash = "#/umelci/"+umelecId; }catch(_){}
+  } else if(umelecId && S.route.budova && !S.route.priecelie){
+    S.route = {...S.route, umelec:umelecId, motiv:null};
+    try{ location.hash = "#/budova/"+S.route.budova+"/umelec/"+umelecId; }catch(_){}
+  } else {
+    S.route = {budova:null, priecelie:null, vyskyt:null, umelec:umelecId||null, motiv:null, list:null};
+    try{ location.hash = umelecId ? ("#/umelec/"+umelecId) : "#/"; }catch(_){}
+  }
   if(map && map.isStyleLoaded()) refreshMapSelection();
   render();
   panel.scrollTop = 0;
+}
+function goDielo(vyskytId){
+  const ctx = findVyskytById(vyskytId);
+  if(!ctx) return;
+  if(vyskytId !== S.route.vyskyt){ const d=document.getElementById("sp-detail"); if(d) d.scrollTop=0; }
+  S.route = {budova:ctx.b.id, priecelie:ctx.f.id, vyskyt:vyskytId, umelec:null, motiv:null, list:"diela"};
+  try{ location.hash = "#/diela/"+vyskytId; }catch(_){}
+  if(map && map.isStyleLoaded()) refreshMapSelection();
+  render();
 }
 function goList(name){
   S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:null, list:name||null};
@@ -407,6 +553,7 @@ function goList(name){
   panel.scrollTop = 0;
 }
 function activeTab(){
+  if(S.route.list==="diela") return "diela";
   if(S.route.list==="budovy" || S.route.budova) return "budovy";
   if(S.route.list==="umelci" || S.route.umelec) return "umelci";
   if(S.route.list==="motivy" || S.route.motiv) return "motivy";
@@ -420,14 +567,30 @@ function updateTabs(){
 }
 function wireTabs(){
   appRoot.querySelectorAll("[data-tab]").forEach(btn=>{
-    btn.onclick = ()=> goList(btn.dataset.tab==="prehlad" ? null : btn.dataset.tab);
+    btn.onclick = ()=> goList(btn.dataset.tab);
   });
 }
 window.addEventListener("hashchange", ()=>{
+  const mml = location.hash.match(/^#\/motivy\/([^/]+)/);
+  if(mml){
+    if(S.route.motiv !== mml[1] || S.route.list !== "motivy"){
+      S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:mml[1], list:"motivy"};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
   const mm = location.hash.match(/^#\/motiv\/([^/]+)/);
   if(mm){
     if(S.route.motiv !== mm[1]){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, motiv:mm[1], list:null};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
+  const muc = location.hash.match(/^#\/umelci\/([^/]+)/);
+  if(muc){
+    if(S.route.umelec !== muc[1] || S.route.list !== "umelci"){
+      S.route = {budova:null, priecelie:null, vyskyt:null, umelec:muc[1], motiv:null, list:"umelci"};
       if(map && map.isStyleLoaded()) refreshMapSelection(); render();
     }
     return;
@@ -440,7 +603,27 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
-  const ml = location.hash.match(/^#\/(budovy|umelci|motivy)$/);
+  const mdi = location.hash.match(/^#\/diela\/([^/]+)/);
+  if(mdi){
+    if(S.route.vyskyt !== mdi[1] || S.route.list !== "diela"){
+      const ctx = findVyskytById(mdi[1]);
+      if(ctx){
+        S.route = {budova:ctx.b.id, priecelie:ctx.f.id, vyskyt:mdi[1], umelec:null, motiv:null, list:"diela"};
+        if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+      }
+    }
+    return;
+  }
+  const mbu = location.hash.match(/^#\/budova\/([^/]+)\/umelec\/([^/]+)/);
+  if(mbu){
+    if(S.route.budova !== mbu[1] || S.route.umelec !== mbu[2] || S.route.priecelie){
+      if(mbu[1] !== S.route.budova){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
+      S.route = {budova:mbu[1], priecelie:null, vyskyt:null, umelec:mbu[2], motiv:null, list:null};
+      if(map && map.isStyleLoaded()) refreshMapSelection(); render();
+    }
+    return;
+  }
+  const ml = location.hash.match(/^#\/(budovy|umelci|motivy|diela)$/);
   if(ml){
     if(S.route.list !== ml[1] || S.route.budova || S.route.umelec){
       S.route = {budova:null, priecelie:null, vyskyt:null, umelec:null, list:ml[1]};
@@ -448,9 +631,9 @@ window.addEventListener("hashchange", ()=>{
     }
     return;
   }
-  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/vyskyt\/([^/]+))?)?/);
-  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, umelec:null, list:null};
-  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.vyskyt!==S.route.vyskyt || S.route.umelec || S.route.list){
+  const m = location.hash.match(/^#\/budova\/([^/]+)(?:\/prieceli\/([^/]+)(?:\/motiv\/([^/]+))?)?/);
+  const want = m ? {budova:m[1], priecelie:m[2]||null, vyskyt:null, motiv:m[3]||null, umelec:null, list:null} : {budova:null, priecelie:null, vyskyt:null, motiv:null, umelec:null, list:null};
+  if(want.budova!==S.route.budova || want.priecelie!==S.route.priecelie || want.motiv!==S.route.motiv || S.route.umelec || S.route.list){
     if(want.budova !== S.route.budova){ S.budovaTab = "zakladne"; S.budovaEdit = false; }
     S.route = want; if(map && map.isStyleLoaded()) refreshMapSelection(); render();
   }
@@ -464,38 +647,88 @@ document.addEventListener("keydown", e=>{
 /* =========================================================================
    PANEL
    ========================================================================= */
+const detailPanel = document.getElementById("sp-detail");
 function render(){
   let handled = false;
-  if(S.route.motiv){
+  if(S.route.motiv && S.route.list==="motivy"){
     const m = DATA.motivy.find(x=>x.id===S.route.motiv);
-    if(m){ renderMotiv(m); handled = true; }
+    if(m){
+      appRoot.classList.add("has-detail");
+      renderMotivyList();
+      renderMotivDetailPanel(m);
+      handled = true;
+    }
   }
-  if(!handled && S.route.umelec){
+  if(!handled && S.route.umelec && S.route.list==="umelci"){
     const u = DATA.umelci.find(x=>x.id===S.route.umelec);
-    if(u){ renderUmelec(u); handled = true; }
+    if(u){
+      appRoot.classList.add("has-detail");
+      renderUmelciList();
+      renderUmelecDetailPanel(u);
+      handled = true;
+    }
+  }
+  if(!handled && S.route.list==="diela" && S.route.vyskyt){
+    const ctx = findVyskytById(S.route.vyskyt);
+    if(ctx){
+      appRoot.classList.add("has-detail");
+      renderDielaList();
+      renderDieloDetailPanel(ctx.b, ctx.f, ctx.v);
+      handled = true;
+    }
   }
   if(!handled){
     const b = DATA.budovy.find(x=>x.id===S.route.budova);
     if(b){
       const f = b.priecelia.find(x=>x.id===S.route.priecelie);
-      if(!f){ renderBudova(b); }
+      if(!f){
+        const u = S.route.umelec ? DATA.umelci.find(x=>x.id===S.route.umelec) : null;
+        if(u){
+          appRoot.classList.add("has-detail");
+          renderBudova(b);
+          renderUmelecDetailPanel(u);
+        } else {
+          appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderBudova(b);
+        }
+      }
       else {
-        const v = f.vyskyty.find(x=>x.id===S.route.vyskyt);
-        if(v) renderVyskyt(b,f,v); else renderPriecelie(b,f);
+        const m = S.route.motiv ? DATA.motivy.find(x=>x.id===S.route.motiv) : null;
+        const v = S.route.vyskyt ? f.vyskyty.find(x=>x.id===S.route.vyskyt) : null;
+        if(m){
+          appRoot.classList.add("has-detail");
+          renderPriecelie(b, f, S.route.vyskyt||null);
+          renderMotivDetailPanel(m, v ? {b, f, v} : null);
+        } else if(v){
+          appRoot.classList.add("has-detail");
+          renderPriecelie(b, f, v.id);
+          renderAssignMotivPanel(b, f, v);
+        } else {
+          appRoot.classList.remove("has-detail");
+          detailPanel.innerHTML="";
+          renderPriecelie(b, f, null);
+        }
       }
       handled = true;
     }
   }
+  if(!handled && S.route.motiv){
+    const m = DATA.motivy.find(x=>x.id===S.route.motiv);
+    if(m){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderMotiv(m); handled = true; }
+  }
+  if(!handled && S.route.umelec){
+    const u = DATA.umelci.find(x=>x.id===S.route.umelec);
+    if(u){ appRoot.classList.remove("has-detail"); detailPanel.innerHTML=""; renderUmelec(u); handled = true; }
+  }
   if(!handled){
+    appRoot.classList.remove("has-detail");
+    detailPanel.innerHTML="";
     if(S.route.list==="budovy") renderBudovyList();
     else if(S.route.list==="umelci") renderUmelciList();
     else if(S.route.list==="motivy") renderMotivyList();
+    else if(S.route.list==="diela") renderDielaList();
     else renderPrehlad();
   }
   updateTabs();
-}
-function budovaLabel(b){
-  return b.nazov || b.adresa || b.kod || b.id;
 }
 function budovaStats(b){
   let diel = 0;
@@ -515,6 +748,11 @@ function facadeLabel(b, f){
   const i = b.priecelia.indexOf(f);
   return "P" + (i>=0 ? i+1 : "?");
 }
+function dieloKod(b, f, v){
+  const fi = b.priecelia.indexOf(f);
+  const vi = f.vyskyty.indexOf(v);
+  return `${b.kod||b.id}.${fi>=0?fi+1:"?"}.${vi>=0?vi+1:"?"}`;
+}
 function vyskytTitle(v){
   const m = DATA.motivy.find(x=>x.id===v.motivId);
   if(m) return m.nazov || "bez názvu";
@@ -526,6 +764,15 @@ function motivLabel(m){
   const nazov = m.nazov || "bez názvu";
   return u ? `${u.meno} – ${nazov}` : nazov;
 }
+function motivyForBudova(b, alwaysIncludeId){
+  if(!b.umelecId) return DATA.motivy;
+  let list = DATA.motivy.filter(m=>m.umelecId===b.umelecId);
+  if(alwaysIncludeId && !list.some(m=>m.id===alwaysIncludeId)){
+    const extra = DATA.motivy.find(m=>m.id===alwaysIncludeId);
+    if(extra) list = list.concat(extra);
+  }
+  return list.length ? list : DATA.motivy;
+}
 function motivyByUmelec(umelecId){
   return DATA.motivy.filter(m=>m.umelecId===umelecId);
 }
@@ -535,8 +782,8 @@ function budovyByUmelec(umelecId){
 function crumb(parts){
   return `<nav class="crumb">${parts.map((p,i)=>
     (i?'<span>›</span>':'') + (p.go!==undefined
-      ? `<a tabindex="0" data-go='${p.go}'>${esc(p.t)}</a>`
-      : `<span>${esc(p.t)}</span>`)).join("")}</nav>`;
+      ? `<a tabindex="0" data-go='${p.go}'${p.red?' style="color:var(--survey)"':''}>${esc(p.t)}</a>`
+      : `<span${p.red?' style="color:var(--survey)"':''}>${esc(p.t)}</span>`)).join("")}</nav>`;
 }
 function motivCountsAll(){
   const counts = {};
@@ -545,6 +792,19 @@ function motivCountsAll(){
     counts[k] = (counts[k]||0)+1;
   })));
   return counts;
+}
+function motivStats(motivId){
+  const budovySet = new Set();
+  const prieceliaSet = new Set();
+  let diel = 0;
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===motivId){
+      budovySet.add(b.id);
+      prieceliaSet.add(f.id);
+      diel++;
+    }
+  })));
+  return { budov: budovySet.size, priecelia: prieceliaSet.size, diel };
 }
 function renderPrehlad(){
   const n = DATA.budovy.length;
@@ -567,39 +827,49 @@ function renderPrehlad(){
 }
 function renderBudovyList(){
   const n = DATA.budovy.length;
-  panel.innerHTML = crumb([{t:"budovy"}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Zoznam</p>
     <h2 class="title">Budovy <span class="kod">${n}</span></h2>
     ${n ? `<ul class="list">${DATA.budovy.map(b=>{
-        const label = budovaLabel(b);
-        const kodInFdir = label !== (b.kod||b.id);
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
         const s = budovaStats(b);
         return `<li><button class="fitem" data-b="${b.id}">
-        <span class="fname">${esc(label)}</span>
-        <span class="fdir">${kodInFdir?esc(b.kod)+" · ":""}${s.priecelia} priečelí · ${s.motivov} motívov · ${s.diel} diel</span>
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${s.priecelia} priečelí · ${s.motivov} motívov · ${s.diel} diel</span>
       </button></li>`;
       }).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne domy.</div>`}
   </div>`;
   wire();
 }
 function renderUmelciList(){
-  panel.innerHTML = crumb([{t:"umelci"}]) + `<div class="pad">
+  const editing = !!S.umelciEdit;
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelci-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Umelci <span class="kod">${DATA.umelci.length}</span></h2>
+    ${editToggle}
     ${DATA.umelci.length ? `<ul class="list">${DATA.umelci.map(u=>`
       <li><button class="fitem" data-u="${esc(u.id)}">
         <span class="fname">${esc(u.meno || "bez mena")}</span>
         <span class="fdir">${motivyByUmelec(u.id).length} motívov · ${budovyByUmelec(u.id).length} domov</span>
       </button></li>`).join("")}</ul>` : `<div class="empty">Zatiaľ žiadni umelci. Pridaj prvého nižšie.</div>`}
+    ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-umelec-name" style="flex:1;min-width:140px" placeholder="meno umelca…">
       <button class="btn ghost" id="sp-new-umelec-add">+ Pridať umelca</button>
-    </div>
+    </div>` : ""}
   </div>`;
   wire();
   wireUmelciList();
 }
 function wireUmelciList(){
+  panel.querySelectorAll("[data-umelci-edit-toggle]").forEach(el=>{
+    el.onclick = ()=>{ S.umelciEdit = !S.umelciEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   const addUmelecBtn = panel.querySelector("#sp-new-umelec-add");
   if(addUmelecBtn) addUmelecBtn.onclick = ()=>{
     const nameInput = panel.querySelector("#sp-new-umelec-name");
@@ -615,20 +885,31 @@ function renderMotivyList(){
   const counts = motivCountsAll();
   const totalVyskytov = Object.values(counts).reduce((a,c)=>a+c,0);
   const bezMotivu = counts[""] || 0;
+  const editing = !!S.motivyEdit;
 
-  const motivItemHtml = m => `<li style="display:block">
-    <div class="row" style="margin:0;align-items:center">
+  const motivStatsLabel = m => {
+    const st = motivStats(m.id);
+    return `${st.budov} ${st.budov===1?"dome":"domoch"} · ${st.priecelia} ${st.priecelia===1?"priečelí":"priečeliach"} · ${st.diel}×`;
+  };
+
+  const motivItemView = m => `<li><button class="fitem" data-mid="${esc(m.id)}">
+      <span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov || "bez názvu")}</span>
+      <span class="fdir">${motivStatsLabel(m)}</span>
+    </button></li>`;
+
+  const motivItemEdit = m => `<li style="display:block">
+    <div class="row" style="margin:0;align-items:center;flex-wrap:nowrap">
       <input type="color" class="in" style="flex:0 0 40px;padding:2px" data-mid="${esc(m.id)}" data-mfield="farba" value="${esc(m.farba)}">
-      <input class="in" style="flex:1;min-width:100px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
-      <select class="in" style="flex:0 0 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
+      <input class="in" style="flex:1;min-width:60px" data-mid="${esc(m.id)}" data-mfield="nazov" value="${esc(m.nazov)}" placeholder="názov motívu">
+      <select class="in" style="flex:0 1 140px" data-mid="${esc(m.id)}" data-mfield="umelecId">
         <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
         ${DATA.umelci.map(u=>`<option value="${esc(u.id)}"${m.umelecId===u.id?" selected":""}>${esc(u.meno)}</option>`).join("")}
       </select>
-      <span class="fdir" style="flex:0 0 auto">${counts[m.id]||0}×</span>
-      <button class="btn ghost" data-mid="${esc(m.id)}" title="Detail motívu">→</button>
-      <button class="btn ghost" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
+      <button class="btn ghost" style="flex:0 0 auto" data-mdel="${esc(m.id)}" title="Zmazať motív">×</button>
     </div>
   </li>`;
+
+  const motivItemHtml = editing ? motivItemEdit : motivItemView;
 
   // Group by artist, sorted by artist name; unassigned last
   const groups = {};
@@ -648,22 +929,35 @@ function renderMotivyList(){
     return header + `<ul class="list">${motList.map(motivItemHtml).join("")}</ul>`;
   }).join("");
 
-  panel.innerHTML = crumb([{t:"motívy"}]) + `<div class="pad">
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-motivy-edit-toggle tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Katalóg</p>
     <h2 class="title">Motívy sgrafít <span class="kod">${totalVyskytov} výskytov</span></h2>
+    ${editToggle}
     ${DATA.motivy.length ? groupsHtml : `<div class="empty">Zatiaľ žiadne motívy v katalógu. Pridaj prvý nižšie.</div>`}
-    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu.</p>` : ""}
+    ${bezMotivu ? `<p class="hint">${bezMotivu}× výskyt zatiaľ bez priradeného motívu. <a data-go="list:diela" tabindex="0">Zobraziť v zozname Diela</a>.</p>` : ""}
+    ${editing ? `
     <div class="row">
       <input class="in" id="sp-new-motiv-name" style="flex:1;min-width:140px" placeholder="nový motív…">
       <input type="color" class="in" id="sp-new-motiv-color" style="flex:0 0 40px;padding:2px" value="#8d939a">
       <button class="btn ghost" id="sp-new-motiv-add">+ Pridať motív</button>
-    </div>
+    </div>` : ""}
   </div>`;
   wire();
   wireMotivyList();
 }
 function wireMotivyList(){
+  panel.querySelectorAll("[data-motivy-edit-toggle]").forEach(el=>{
+    el.onclick = ()=>{ S.motivyEdit = !S.motivyEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   panel.querySelectorAll("[data-mid]").forEach(el=>{
+    if(el.tagName==="BUTTON") el.onclick = ()=> goMotivDetail(el.dataset.mid);
+  });
+  panel.querySelectorAll("[data-mfield]").forEach(el=>{
     el.oninput = ()=>{
       const m = DATA.motivy.find(x=>x.id===el.dataset.mid);
       if(!m) return;
@@ -676,7 +970,7 @@ function wireMotivyList(){
     el.onclick = ()=>{
       const id = el.dataset.mdel;
       DATA.motivy = DATA.motivy.filter(x=>x.id!==id);
-      DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===id) v.motivId=""; })));
+      clearMotivFromVyskyty(id);
       deleteMotivRemote(id);
       render();
     };
@@ -692,6 +986,53 @@ function wireMotivyList(){
     saveMotiv(m);
     render();
   };
+}
+function renderDielaList(){
+  const rows = [];
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    rows.push({b, f, v});
+  })));
+  rows.sort((x,y)=>{
+    const xu = x.v.motivId ? 1 : 0, yu = y.v.motivId ? 1 : 0;
+    if(xu !== yu) return xu - yu;
+    const bc = (x.b.kod||x.b.id).localeCompare(y.b.kod||y.b.id, "sk");
+    if(bc) return bc;
+    return facadeLabel(x.b,x.f).localeCompare(facadeLabel(y.b,y.f), "sk");
+  });
+  const bezMotivuCount = rows.filter(r=>!r.v.motivId).length;
+
+  const itemHtml = ({b,f,v})=>{
+    const m = v.motivId ? DATA.motivy.find(x=>x.id===v.motivId) : null;
+    const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
+    const label = m ? (m.nazov || "bez názvu") : (v.nazov ? v.nazov+" — bez motívu" : "bez motívu");
+    return `<li><button class="fitem" data-dielo="${esc(v.id)}">
+      <span class="fname"${!m?' style="color:var(--survey)"':""}>${esc(label)}</span>
+      <span class="fdir">${esc(dieloKod(b,f,v))}${u?" · "+esc(u.meno):""}</span>
+    </button></li>`;
+  };
+
+  panel.innerHTML = `<div class="pad">
+    <p class="eyebrow">Databáza</p>
+    <h2 class="title">Diela <span class="kod">${rows.length}</span></h2>
+    ${bezMotivuCount ? `<p class="hint" style="color:var(--survey)">${bezMotivuCount}× bez priradeného motívu — sú na začiatku zoznamu nižšie.</p>` : ""}
+    ${rows.length ? `<ul class="list">${rows.map(itemHtml).join("")}</ul>` : `<div class="empty">Zatiaľ žiadne výskyty.</div>`}
+  </div>`;
+  wire();
+  wireDielaList();
+}
+function wireDielaList(){
+  panel.querySelectorAll("[data-dielo]").forEach(el=>{
+    el.onclick = ()=> goDielo(el.dataset.dielo);
+  });
+}
+function findVyskytById(vyskytId){
+  for(const b of DATA.budovy){
+    for(const f of b.priecelia){
+      const v = f.vyskyty.find(x=>x.id===vyskytId);
+      if(v) return {b, f, v};
+    }
+  }
+  return null;
 }
 function fieldRow(label, val, path){
   return `<tr><th>${esc(label)}</th><td><input class="in" data-path="${path}" value="${esc(val)}"></td></tr>`;
@@ -722,7 +1063,7 @@ function miniPlan(b, activeId, legendHtml){
     const a=P(local[i]), c=P(local[(i+1)%local.length]);
     const f = findFacadeByEdge(b, i);
     const cls = (f && f.id===activeId) ? " is-active" : (f ? " is-facade" : "");
-    return `<line class="fedge${cls}" x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}"></line>
+    return `<line class="fedge${cls}"${f?` data-f="${esc(f.id)}"`:""} x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}"></line>
             <line class="fhit-mini" x1="${a[0]}" y1="${a[1]}" x2="${c[0]}" y2="${c[1]}" data-edge="${i}"></line>`;
   }).join("");
   return `<div class="plan">
@@ -736,9 +1077,11 @@ function miniPlan(b, activeId, legendHtml){
     <div class="legend">${legendHtml||""}</div>
   </div>`;
 }
-function budovaTabsHtml(activeTab){
+function budovaTabsHtml(b, activeTab){
   const btn = (key,label)=>`<button class="tool" data-btab="${key}" aria-pressed="${activeTab===key}">${esc(label)}</button>`;
+  const nameTab = `<span style="display:flex;align-items:center;font-family:var(--sans);font-weight:700;font-size:14px;padding:5px 4px 5px 0">${esc(b.kod||b.id)}</span>`;
   return `<div class="row" style="margin-top:0">
+    ${nameTab}
     ${btn("zakladne","Základné údaje")}
     ${btn("priecelia","Priečelia")}
     ${btn("motivy","Motívy")}
@@ -753,7 +1096,7 @@ function renderBudova(b){
   </div>`;
   const umelec = DATA.umelci.find(u=>u.id===b.umelecId);
   const umelecView = umelec
-    ? `<a data-u="${esc(umelec.id)}" tabindex="0" style="cursor:pointer;color:var(--survey);border-bottom:1px solid var(--survey)">${esc(umelec.meno)}</a>`
+    ? `<a data-u="${esc(umelec.id)}" tabindex="0" style="cursor:pointer;color:var(--survey);text-decoration:none">${esc(umelec.meno)}</a>`
     : `<span class="muted">— bez umelca —</span>`;
   const viewRow = (label, html)=> `<tr><th>${esc(label)}</th><td>${html || `<span class="muted">—</span>`}</td></tr>`;
 
@@ -773,7 +1116,6 @@ function renderBudova(b){
     <textarea class="in" data-path="popis" placeholder="Popis domu, história, kontext…">${esc(b.popis)}</textarea>` : `
     ${editToggle}
     <table class="meta">
-      <tr><th>Budova</th><td><input class="kod-edit" data-path="kod" value="${esc(b.kod||b.id)}" placeholder="kód"></td></tr>
       ${viewRow("Pôvodné označenie", esc(b.oznacenie))}
       ${viewRow("Adresa", esc(b.adresa))}
       ${viewRow("Rok výstavby", esc(b.rok))}
@@ -788,8 +1130,9 @@ function renderBudova(b){
     ${miniPlan(b, null, `${bs.motivov} motívov<br>${bs.diel} diel`)}
     ${b.priecelia.length ? `<ul class="list">${b.priecelia.map((f,i)=>{
         const fs = facadeStats(f);
+        const label = f.nazov || (SMER_NAZOV[f.smer] ? SMER_NAZOV[f.smer]+" priečelie" : "priečelie");
         return `<li><button class="fitem" data-b="${b.id}" data-f="${f.id}">
-        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(f.nazov || (SMER_NAZOV[f.smer]+" priečelie"))}</span>
+        <span class="fname"><span class="kod" style="margin-right:6px">P${i+1}</span>${esc(label)}${f.unresolved?' <span style="color:var(--survey)">· nepriradené k strane domu</span>':""}</span>
         <span class="fdir">${fs.motivov} motívov · ${fs.diel} diel</span>
       </button></li>`;
       }).join("")}</ul>`
@@ -813,7 +1156,7 @@ function renderBudova(b){
       }).join("")}${standaloneB.map(({f,v})=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">${facadeLabel(b,f)} · samostatné sgrafito</span>
+        <span class="fdir">${esc(dieloKod(b,f,v))} · bez motívu</span>
       </button></li>`).join("")}</ul>`
       : `<div class="empty">Na tejto budove zatiaľ nie je označený žiadny motív. Označ výskyty na fotke priečelia v záložke Priečelia.</div>`}
   <p class="hint">Klikni na motív pre jeho detail a nahranie fotografie.</p>`;
@@ -827,11 +1170,20 @@ function renderBudova(b){
       <input type="file" id="upload-podklad-b-input" hidden>
     </div>`;
 
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id}]) + `<div class="pad">
-    ${budovaTabsHtml(tab)}
+  panel.innerHTML = `<div class="pad">
+    ${budovaTabsHtml(b, tab)}
     ${tab==="priecelia" ? prieceliaTab : tab==="motivy" ? motivyTab : tab==="podklady" ? podkladyTab : zakladneTab}
   </div>`;
   wire(b);
+  if(tab==="priecelia") wirePrieceliaListHover();
+}
+function wirePrieceliaListHover(){
+  panel.querySelectorAll(".fitem[data-f]:not([data-v])").forEach(el=>{
+    const edge = panel.querySelector(`.fedge[data-f="${el.dataset.f}"]`);
+    if(!edge) return;
+    el.addEventListener("mouseenter", ()=> edge.classList.add("is-hover"));
+    el.addEventListener("mouseleave", ()=> edge.classList.remove("is-hover"));
+  });
 }
 function photoBlock(f, activeVyskytId, addingMode){
   if(!f.fotoUrl){
@@ -848,9 +1200,10 @@ function photoBlock(f, activeVyskytId, addingMode){
     ${dots}
   </div>`;
 }
-function renderPriecelie(b, f){
+function renderPriecelie(b, f, activeVid){
   const adding = S.addingVyskyt && S.addingVyskyt.prieceleId===f.id;
   const editing = !!S.priecelieEdit;
+  const reassigning = S.reassignPriecelie === f.id;
   const grouped = {};
   const standalone = [];
   f.vyskyty.forEach(v=>{
@@ -868,13 +1221,14 @@ function renderPriecelie(b, f){
       }).join("")}${standalone.map(v=>`
       <li><button class="fitem" data-b="${b.id}" data-f="${f.id}" data-v="${v.id}">
         <span class="fname">${esc(vyskytTitle(v))}</span>
-        <span class="fdir">samostatné sgrafito</span>
+        <span class="fdir">${esc(dieloKod(b,f,v))} · bez motívu</span>
       </button></li>`).join("")}</ul>`
     : `<div class="empty">Na tomto priečelí zatiaľ nie je označený žiadny výskyt.</div>`;
 
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:facadeLabel(b,f)}]) + `<div class="pad">
-    ${budovaTabsHtml("priecelia")}
-    ${photoBlock(f, null, !!adding)}
+  panel.innerHTML = `<div class="pad">
+    ${budovaTabsHtml(b, "priecelia")}
+    ${f.unresolved ? `<div class="empty" style="border-color:var(--survey);color:var(--survey)">Toto priečelie sa nepodarilo umiestniť na správnu stranu domu (napr. po zmene tvaru budovy). Údaje a motívy zostali zachované — klikni na Editovať a použi "Presunúť na inú stranu domu".</div>` : ""}
+    ${photoBlock(f, activeVid||null, !!adding)}
     <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
       <a data-priecelie-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
     </div>
@@ -882,17 +1236,22 @@ function renderPriecelie(b, f){
     <input type="file" id="sp-upload-foto" accept="image/*" hidden>
     <div class="row">
       <button class="btn ghost" id="sp-btn-upload-foto">${f.fotoUrl?"Nahrať inú fotku":"Nahrať fotku priečelia"}</button>
-      ${f.fotoUrl ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>` : ""}
+      ${f.fotoUrl ? (motivyForBudova(b).length
+        ? `<button class="tool" id="sp-btn-adding" aria-pressed="${!!adding}">${adding?"Ukončiť označovanie":"+ Označiť výskyt"}</button>`
+        : `<span class="hint">Najprv pridaj motív do <a data-go="list:motivy" tabindex="0">katalógu motívov</a>.</span>`) : ""}
     </div>
     ${f.fotoUrl && adding ? `
     <div class="row" style="align-items:center">
       <select class="in" id="sp-adding-motiv" style="flex:1;min-width:160px">
-        <option value=""${!S.addingVyskyt.motivId?" selected":""}>— bez motívu —</option>
-        ${DATA.motivy.map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
+        ${motivyForBudova(b, S.addingVyskyt.motivId).map(m=>`<option value="${esc(m.id)}"${S.addingVyskyt.motivId===m.id?" selected":""}>${esc(motivLabel(m))}</option>`).join("")}
       </select>
     </div>
     <p class="hint">Klikaj priamo na fotku — každý klik pridá výskyt zvoleného motívu. Nový motív pridáš v zozname motívov.</p>
     ` : ""}
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="sp-btn-reassign" aria-pressed="${reassigning}">${reassigning?"Zrušiť presun":"Presunúť na inú stranu domu"}</button>
+    </div>
+    ${reassigning ? miniPlan(b, f.id, "Klikni na stranu domu, kam chceš toto priečelie (aj s jeho motívmi) presunúť.") : ""}
     <div class="row" style="margin-top:12px"><button class="btn warn" id="del-f">Zrušiť toto priečelie</button></div>
     ` : ""}
 
@@ -915,7 +1274,8 @@ function wirePriecelie(b, f){
     if(S.addingVyskyt && S.addingVyskyt.prieceleId===f.id){
       S.addingVyskyt = null;
     } else {
-      S.addingVyskyt = { prieceleId: f.id, motivId: "" };
+      const dostupneMotivy = motivyForBudova(b);
+      S.addingVyskyt = { prieceleId: f.id, motivId: dostupneMotivy.length ? dostupneMotivy[0].id : "" };
     }
     render();
   };
@@ -936,7 +1296,7 @@ function wirePriecelie(b, f){
       const nv = {
         id: "v"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
         motivId: S.addingVyskyt.motivId || "", nazov:"",
-        x, y, velkost:"", vrstvy:"", stav:"", popis:"", podklady:[]
+        x, y, velkost:"", vrstvy:"", stav:"", popis:"", podklady:[], fotoUrl:""
       };
       f.vyskyty.push(nv);
       saveVyskyt(nv, f.id);
@@ -946,64 +1306,192 @@ function wirePriecelie(b, f){
       dot.onclick = (e)=>{ e.stopPropagation(); go(b.id, f.id, dot.dataset.v); };
     });
   }
+  panel.querySelectorAll("[data-mid]").forEach(el=>{
+    if(el.tagName==="BUTTON") el.onclick = ()=> goPrieceliaMotiv(b.id, f.id, el.dataset.mid);
+  });
+  const reassignBtn = panel.querySelector("#sp-btn-reassign");
+  if(reassignBtn) reassignBtn.onclick = ()=>{
+    S.reassignPriecelie = (S.reassignPriecelie === f.id) ? null : f.id;
+    render();
+  };
+  if(S.reassignPriecelie === f.id){
+    panel.querySelectorAll(".fhit-mini").forEach(el=>{
+      el.onclick = ()=> reassignPriecelieToEdge(b, f, +el.dataset.edge);
+    });
+  }
 }
-function renderVyskyt(b, f, v){
-  const idx = f.vyskyty.indexOf(v);
-  const m = DATA.motivy.find(x=>x.id===v.motivId);
-  const title = vyskytTitle(v);
-  const fLabel = facadeLabel(b, f);
-  panel.innerHTML = crumb([{t:"budovy", go:"list:budovy"},{t:b.kod||b.id, go:b.id},{t:fLabel, go:b.id+"|"+f.id},{t:title}]) + `<div class="pad">
-    <p class="eyebrow">Výskyt sgrafita <span class="kod">${esc(b.kod||b.id)} / ${esc(fLabel)} / #${idx+1}</span></p>
-    <h2 class="title" style="font-size:22px">${esc(title)}</h2>
-
-    ${photoBlock(f, v.id, false)}
-
-    <h3 class="sec">Motív</h3>
-    <select class="in" id="sp-vyskyt-motiv">
-      <option value=""${!v.motivId?" selected":""}>— samostatné sgrafito (nie je súčasťou opakovaného motívu) —</option>
-      ${DATA.motivy.map(mo=>`<option value="${esc(mo.id)}"${v.motivId===mo.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
-    </select>
-    ${!v.motivId ? `
-    <h3 class="sec">Názov sgrafita</h3>
-    <input class="in" data-vpath="nazov" value="${esc(v.nazov)}" placeholder="Pomenuj toto sgrafito…">
-    ` : ""}
-    <p class="hint">Nový motív do katalógu pridáš v <a data-go="list:motivy" tabindex="0">zozname motívov</a>.</p>
-
-    <h3 class="sec">Údaje o výskyte</h3>
-    <table class="meta">
-      ${fieldRow3("Veľkosť", v.velkost, "velkost")}
-      ${fieldRow3("Počet vrstiev sgrafita", v.vrstvy, "vrstvy")}
-      ${fieldRow3("Stav", v.stav, "stav")}
-    </table>
-    <h3 class="sec">Popis</h3>
-    <textarea class="in" data-vpath="popis" placeholder="Popis motívu, technika, farebnosť, poškodenie…">${esc(v.popis)}</textarea>
-
-    <h3 class="sec">Podklady k výskytu</h3>
-    <p class="hint" style="margin-top:0">Napr. originálna fotografia, fotka zo súčasnej realizácie, detail poškodenia…</p>
-    ${podkladyBlok(v.podklady, "v")}
-    <div class="row" style="margin-top:8px">
-      <button class="btn ghost" id="add-podklad-v">+ Podklad (odkaz)</button>
-      <button class="btn ghost" id="upload-podklad-v">+ Nahrať súbor</button>
-      <input type="file" id="upload-podklad-v-input" hidden>
-    </div>
-
+function reassignPriecelieToEdge(b, f, edgeIndex){
+  if(edgeIndex === f.edgeIndex){ S.reassignPriecelie = null; render(); return; }
+  const existing = findFacadeByEdge(b, edgeIndex);
+  if(existing){
+    alert("Na tejto strane domu už existuje iné priečelie. Najprv ho zruš alebo presuň inam.");
+    return;
+  }
+  const e = edgeInfo(b.poly, edgeIndex);
+  f.edgeIndex = edgeIndex;
+  f.smer = e.smer;
+  f.dlzka = e.lenM;
+  f.edgeLL = edgeLLOf(b.poly, edgeIndex);
+  f.unresolved = false;
+  savePriecelie(f, b.id);
+  S.reassignPriecelie = null;
+  if(map.getSource("facades")) map.getSource("facades").setData(facadesFC());
+  render();
+}
+function renderAssignMotivPanel(b, f, v){
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow" style="color:var(--survey)">Bez motívu</p>
+    <h2 class="title" style="font-size:22px">${esc(v.nazov || "bez názvu")}</h2>
+    <div class="empty">Tento výskyt zatiaľ nemá priradený motív z katalógu.</div>
+    <h3 class="sec">Priradiť motív</h3>
+    ${motivyForBudova(b).length
+      ? `<select class="in" id="sp-assign-motiv">
+          <option value="" selected disabled>— vyber motív —</option>
+          ${motivyForBudova(b).map(m=>`<option value="${esc(m.id)}">${esc(motivLabel(m))}</option>`).join("")}
+        </select>
+        <p class="hint">Po priradení motívu sa otvorí jeho karta s fotkou a údajmi.</p>`
+      : `<p class="hint">Katalóg motívov je zatiaľ prázdny. Najprv pridaj motív v zozname Motívy.</p>`}
     <div class="row" style="margin-top:26px"><button class="btn warn" id="del-v">Zrušiť tento výskyt</button></div>
   </div>`;
-  wire(b,f,v);
-  wireVyskyt(b,f,v);
+  wireAssignMotivPanel(b, f, v);
 }
-function wireVyskyt(b, f, v){
-  const sel = panel.querySelector("#sp-vyskyt-motiv");
+function wireAssignMotivPanel(b, f, v){
+  const sel = detailPanel.querySelector("#sp-assign-motiv");
   if(sel) sel.onchange = ()=>{
     v.motivId = sel.value;
     saveVyskyt(v, f.id);
+    go(b.id, f.id, v.id);
   };
-  const wrap = panel.querySelector("#sp-photo");
+  const dv = detailPanel.querySelector("#del-v");
+  if(dv) dv.onclick = ()=>{
+    f.vyskyty = f.vyskyty.filter(x=>x.id!==v.id);
+    deleteVyskytRemote(v.id);
+    go(b.id, f.id, null);
+  };
+}
+function renderDieloDetailPanel(b, f, v){
+  const m = v.motivId ? DATA.motivy.find(x=>x.id===v.motivId) : null;
+  const u = m ? DATA.umelci.find(x=>x.id===m.umelecId) : null;
+  const motivyOpts = motivyForBudova(b, v.motivId);
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">${esc(dieloKod(b,f,v))}</p>
+    <h2 class="title" style="font-size:22px">${m ? esc(m.nazov || "bez názvu") : "Bez motívu"}</h2>
+    ${u ? `<p class="lead" style="font-size:14px">${esc(u.meno)}</p>` : ""}
+    ${photoBlock(f, v.id, false)}
+    <h3 class="sec">${m ? "Zmeniť priradenie motívu" : "Priradiť motív"}</h3>
+    ${motivyOpts.length
+      ? `<select class="in" id="sp-dielo-motiv">
+          ${!m ? `<option value="" selected disabled>— vyber motív —</option>` : ""}
+          ${motivyOpts.map(mo=>`<option value="${esc(mo.id)}"${mo.id===v.motivId?" selected":""}>${esc(mo.nazov||"bez názvu")}</option>`).join("")}
+        </select>`
+      : `<p class="hint">Katalóg motívov je zatiaľ prázdny. Najprv pridaj motív v zozname Motívy.</p>`}
+  </div>`;
+  wireDieloDetailPanel(b, f, v);
+}
+function wireDieloDetailPanel(b, f, v){
+  const wrap = detailPanel.querySelector("#sp-photo");
   if(wrap){
     wrap.querySelectorAll(".vmark").forEach(dot=>{
-      dot.onclick = (e)=>{ e.stopPropagation(); go(b.id, f.id, dot.dataset.v); };
+      dot.onclick = (e)=>{ e.stopPropagation(); goDielo(dot.dataset.v); };
     });
   }
+  const sel = detailPanel.querySelector("#sp-dielo-motiv");
+  if(sel) sel.onchange = ()=>{
+    v.motivId = sel.value;
+    saveVyskyt(v, f.id);
+    render();
+  };
+}
+function renderMotivDetailPanel(m, ctx){
+  const editing = !!S.motivDetailEdit;
+  const u = DATA.umelci.find(x=>x.id===m.umelecId);
+  const st = motivStats(m.id);
+  const vyskyty = [];
+  DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{
+    if(v.motivId===m.id) vyskyty.push({b, f, v});
+  })));
+
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">${u?esc(u.meno):"Bez umelca"}</p>
+    <h2 class="title" style="font-size:22px">${esc(m.nazov || "bez názvu")}</h2>
+    ${m.fotoUrl
+      ? `<div class="photo-wrap" style="margin-top:8px"><img src="${esc(m.fotoUrl)}" alt="Fotografia motívu"></div>`
+      : `<div class="empty">Zatiaľ žiadna fotografia motívu.</div>`}
+    <div class="row" style="justify-content:flex-end;margin-top:6px;margin-bottom:4px">
+      <a data-motivdetail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+    </div>
+    ${editing ? `
+    ${ctx ? `
+    <h3 class="sec">Toto sgrafito na priečelí ${esc(facadeLabel(ctx.b, ctx.f))}</h3>
+    <select class="in" id="sp-vyskyt-reassign-motiv">
+      ${motivyForBudova(ctx.b, m.id).map(mo=>`<option value="${esc(mo.id)}"${mo.id===m.id?" selected":""}>${esc(motivLabel(mo))}</option>`).join("")}
+    </select>
+    <p class="hint" style="margin-top:6px">Zmenou výberu preradíš toto konkrétne sgrafito k inému motívu v katalógu.</p>
+    ` : ""}
+    <input type="file" id="sp-upload-motivdetail-foto" accept="image/*" hidden>
+    <div class="row">
+      <button class="btn ghost" id="sp-btn-upload-motivdetail-foto">${m.fotoUrl?"Nahrať inú fotku":"Nahrať fotku motívu"}</button>
+    </div>
+    <h3 class="sec">Názov</h3>
+    <input class="in" id="sp-motivdetail-nazov" value="${esc(m.nazov)}" placeholder="Názov motívu">
+    <h3 class="sec">Farba</h3>
+    <input type="color" class="in" id="sp-motivdetail-farba" style="flex:0 0 40px;padding:2px" value="${esc(m.farba)}">
+    <h3 class="sec">Umelec</h3>
+    <select class="in" id="sp-motivdetail-umelec">
+      <option value=""${!m.umelecId?" selected":""}>— bez umelca —</option>
+      ${DATA.umelci.map(uu=>`<option value="${esc(uu.id)}"${m.umelecId===uu.id?" selected":""}>${esc(uu.meno)}</option>`).join("")}
+    </select>
+    <h3 class="sec">Popis</h3>
+    <textarea class="in" id="sp-motivdetail-popis" placeholder="Technika, rozmer, farebnosť…">${esc(m.popis)}</textarea>
+    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-motivdetail">Zmazať motív</button></div>
+    ` : ""}
+
+    <h3 class="sec">Výskyty <span class="kod">${st.diel}</span></h3>
+    <p class="hint" style="margin-top:0">${st.budov} domov · ${st.priecelia} priečelí</p>
+    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v})=>{
+        return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
+          <span class="fname">${esc(dieloKod(b,f,v))}</span>
+          <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</span>
+        </button></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt.</div>`}
+  </div>`;
+  wireMotivDetailPanel(m, ctx);
+}
+function wireMotivDetailPanel(m, ctx){
+  const reassignSel = detailPanel.querySelector("#sp-vyskyt-reassign-motiv");
+  if(reassignSel) reassignSel.onchange = ()=>{
+    ctx.v.motivId = reassignSel.value;
+    saveVyskyt(ctx.v, ctx.f.id);
+    go(ctx.b.id, ctx.f.id, ctx.v.id);
+  };
+  detailPanel.querySelectorAll("[data-motivdetail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.motivDetailEdit = !S.motivDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  wireUpload(
+    detailPanel.querySelector("#sp-btn-upload-motivdetail-foto"),
+    detailPanel.querySelector("#sp-upload-motivdetail-foto"),
+    async (file)=>{ const url = await uploadToStorage(file); m.fotoUrl = url; saveMotiv(m); render(); }
+  );
+  const nazovEl = detailPanel.querySelector("#sp-motivdetail-nazov");
+  if(nazovEl) nazovEl.oninput = ()=>{ m.nazov = nazovEl.value; saveMotivDebounced(m.id, m); };
+  const farbaEl = detailPanel.querySelector("#sp-motivdetail-farba");
+  if(farbaEl) farbaEl.oninput = ()=>{ m.farba = farbaEl.value; saveMotivDebounced(m.id, m); };
+  const umelecEl = detailPanel.querySelector("#sp-motivdetail-umelec");
+  if(umelecEl) umelecEl.onchange = ()=>{ m.umelecId = umelecEl.value; saveMotiv(m); render(); };
+  const popisEl = detailPanel.querySelector("#sp-motivdetail-popis");
+  if(popisEl) popisEl.oninput = ()=>{ m.popis = popisEl.value; saveMotivDebounced(m.id, m); };
+  const delBtn = detailPanel.querySelector("#del-motivdetail");
+  if(delBtn) delBtn.onclick = ()=>{
+    DATA.motivy = DATA.motivy.filter(x=>x.id!==m.id);
+    clearMotivFromVyskyty(m.id);
+    deleteMotivRemote(m.id);
+    goList("motivy");
+  };
+  detailPanel.querySelectorAll(".fitem").forEach(el=>{
+    el.onclick = ()=> go(el.dataset.b, el.dataset.f||null, el.dataset.v||null);
+  });
 }
 function renderMotiv(m){
   const countsAll = motivCountsAll();
@@ -1013,7 +1501,7 @@ function renderMotiv(m){
   })));
   const u = DATA.umelci.find(x=>x.id===m.umelecId);
 
-  panel.innerHTML = crumb([{t:"motívy", go:"list:motivy"},{t:motivLabel(m)}]) + `<div class="pad">
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Motív</p>
     <div class="row" style="margin:0;align-items:center;gap:10px">
       <input type="color" class="in" id="sp-motiv-farba" style="flex:0 0 40px;padding:2px" value="${esc(m.farba)}">
@@ -1042,11 +1530,10 @@ function renderMotiv(m){
     <textarea class="in" id="sp-motiv-popis" placeholder="Technika, rozmer, farebnosť…">${esc(m.popis)}</textarea>
 
     <h3 class="sec">Výskyty na sídlisku <span class="kod">${vyskyty.length}</span></h3>
-    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v},i)=>{
-        const fLabel = facadeLabel(b, f);
+    ${vyskyty.length ? `<ul class="list">${vyskyty.map(({b,f,v})=>{
         return `<li><button class="fitem" data-b="${esc(b.id)}" data-f="${esc(f.id)}" data-v="${esc(v.id)}">
-          <span class="fname">${esc(b.kod||b.id)} / ${esc(fLabel)}</span>
-          <span class="fdir">#${i+1}</span>
+          <span class="fname">${esc(dieloKod(b,f,v))}</span>
+          <span class="fdir">${esc(b.kod||b.id)} / ${esc(facadeLabel(b,f))}</span>
         </button></li>`;
       }).join("")}</ul>`
       : `<div class="empty">Tento motív zatiaľ nemá zaznamenaný žiadny výskyt. Označ ho na fotke priečelia.</div>`}
@@ -1080,20 +1567,30 @@ function wireMotiv(m){
   const delBtn = panel.querySelector("#del-motiv");
   if(delBtn) delBtn.onclick = ()=>{
     DATA.motivy = DATA.motivy.filter(x=>x.id!==m.id);
-    DATA.budovy.forEach(b=> b.priecelia.forEach(f=> f.vyskyty.forEach(v=>{ if(v.motivId===m.id) v.motivId=""; })));
+    clearMotivFromVyskyty(m.id);
     deleteMotivRemote(m.id);
     goList("motivy");
   };
 }
 function renderUmelec(u){
+  const editing = !!S.umelecDetailEdit;
   const motivyU = motivyByUmelec(u.id);
   const budovyU = budovyByUmelec(u.id);
   const countsAll = motivCountsAll();
-  panel.innerHTML = crumb([{t:"umelci", go:"list:umelci"},{t:u.meno||"bez mena"}]) + `<div class="pad">
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelec-detail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+  panel.innerHTML = `<div class="pad">
     <p class="eyebrow">Umelec</p>
+    ${editToggle}
+    ${editing ? `
     <input class="in" data-upath="meno" value="${esc(u.meno)}" placeholder="Meno umelca" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
     <h3 class="sec">Popis</h3>
     <textarea class="in" data-upath="popis" placeholder="Životopis, pôsobenie, poznámky…">${esc(u.popis)}</textarea>
+    ` : `
+    <h2 class="title" style="font-size:24px">${esc(u.meno || "bez mena")}</h2>
+    ${u.popis ? `<p class="lead" style="font-size:14px">${esc(u.popis)}</p>` : ""}
+    `}
 
     <h3 class="sec">Motívy tohto umelca <span class="kod">${motivyU.length}</span></h3>
     ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
@@ -1103,20 +1600,24 @@ function renderUmelec(u){
 
     <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
     ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
-        const label = budovaLabel(b);
-        const kodInFdir = label !== (b.kod||b.id);
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
         return `<li><button class="fitem" data-b="${esc(b.id)}">
-        <span class="fname">${esc(label)}</span>
-        <span class="fdir">${kodInFdir?esc(b.kod):`${b.priecelia.length} priečelí`}</span>
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${b.priecelia.length} priečelí</span>
       </button></li>`;
       }).join("")}</ul>`
       : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
 
-    <div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>
+    ${editing ? `<div class="row" style="margin-top:26px"><button class="btn warn" id="del-u">Zmazať umelca</button></div>` : ""}
   </div>`;
   wireUmelec(u);
 }
 function wireUmelec(u){
+  panel.querySelectorAll("[data-umelec-detail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.umelecDetailEdit = !S.umelecDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
   panel.querySelectorAll("[data-go]").forEach(a=>{
     const t = a.dataset.go;
     a.onclick = ()=> t && t.indexOf("list:")===0 ? goList(t.slice(5)) : go(t || null, null, null);
@@ -1131,8 +1632,70 @@ function wireUmelec(u){
   const du = panel.querySelector("#del-u");
   if(du) du.onclick = ()=>{
     DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
-    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id) b.umelecId=""; });
-    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id) m.umelecId=""; });
+    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id){ b.umelecId=""; saveBudova(b); } });
+    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id){ m.umelecId=""; saveMotiv(m); } });
+    deleteUmelecRemote(u.id);
+    goUmelec(null);
+  };
+}
+function renderUmelecDetailPanel(u){
+  const editing = !!S.umelecDetailEdit;
+  const motivyU = motivyByUmelec(u.id);
+  const budovyU = budovyByUmelec(u.id);
+  const countsAll = motivCountsAll();
+  const editToggle = `<div class="row" style="justify-content:flex-end;margin-top:0">
+    <a data-umelecdetail-edit tabindex="0" class="edit-toggle">${editing?"Hotovo":"Editovať"}</a>
+  </div>`;
+  detailPanel.innerHTML = `<div class="pad">
+    <p class="eyebrow">Umelec</p>
+    ${editToggle}
+    ${editing ? `
+    <input class="in" id="sp-umelecdetail-meno" value="${esc(u.meno)}" placeholder="Meno umelca" style="font-family:var(--sans);font-size:24px;text-transform:uppercase;letter-spacing:.02em">
+    <h3 class="sec">Popis</h3>
+    <textarea class="in" id="sp-umelecdetail-popis" placeholder="Životopis, pôsobenie, poznámky…">${esc(u.popis)}</textarea>
+    ` : `
+    <h2 class="title" style="font-size:24px">${esc(u.meno || "bez mena")}</h2>
+    ${u.popis ? `<p class="lead" style="font-size:14px">${esc(u.popis)}</p>` : ""}
+    `}
+
+    <h3 class="sec">Motívy tohto umelca <span class="kod">${motivyU.length}</span></h3>
+    ${motivyU.length ? `<ul class="list">${motivyU.map(m=>`
+      <li><span class="fname" style="display:flex;align-items:center;gap:8px"><span class="mchip" style="--mc:${esc(m.farba)}"></span>${esc(m.nazov||"bez názvu")}</span>
+        <span class="fdir">${countsAll[m.id]||0}× na sídlisku</span></li>`).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny motív. Priraď ho v zozname motívov.</div>`}
+
+    <h3 class="sec">Domy s jeho sgrafitami/reliéfmi <span class="kod">${budovyU.length}</span></h3>
+    ${budovyU.length ? `<ul class="list">${budovyU.map(b=>{
+        const kod = b.kod || b.id;
+        const extra = b.nazov || b.adresa || "";
+        return `<li><button class="fitem" data-b="${esc(b.id)}">
+        <span class="fname">${esc(kod)}</span>
+        <span class="fdir">${extra?esc(extra)+" · ":""}${b.priecelia.length} priečelí</span>
+      </button></li>`;
+      }).join("")}</ul>`
+      : `<div class="empty">Tomuto umelcovi zatiaľ nie je priradený žiadny dom.</div>`}
+
+    ${editing ? `<div class="row" style="margin-top:26px"><button class="btn warn" id="del-umelecdetail">Zmazať umelca</button></div>` : ""}
+  </div>`;
+  wireUmelecDetailPanel(u);
+}
+function wireUmelecDetailPanel(u){
+  detailPanel.querySelectorAll("[data-umelecdetail-edit]").forEach(el=>{
+    el.onclick = ()=>{ S.umelecDetailEdit = !S.umelecDetailEdit; render(); };
+    el.onkeydown = e => { if(e.key==="Enter") el.click(); };
+  });
+  const menoEl = detailPanel.querySelector("#sp-umelecdetail-meno");
+  if(menoEl) menoEl.oninput = ()=>{ u.meno = menoEl.value; saveUmelecDebounced(u.id, u); };
+  const popisEl = detailPanel.querySelector("#sp-umelecdetail-popis");
+  if(popisEl) popisEl.oninput = ()=>{ u.popis = popisEl.value; saveUmelecDebounced(u.id, u); };
+  detailPanel.querySelectorAll(".fitem").forEach(el=>{
+    el.onclick = ()=> go(el.dataset.b, null, null);
+  });
+  const du = detailPanel.querySelector("#del-umelecdetail");
+  if(du) du.onclick = ()=>{
+    DATA.umelci = DATA.umelci.filter(x=>x.id!==u.id);
+    DATA.budovy.forEach(b=>{ if(b.umelecId===u.id){ b.umelecId=""; saveBudova(b); } });
+    DATA.motivy.forEach(m=>{ if(m.umelecId===u.id){ m.umelecId=""; saveMotiv(m); } });
     deleteUmelecRemote(u.id);
     goUmelec(null);
   };

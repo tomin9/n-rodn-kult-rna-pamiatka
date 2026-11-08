@@ -56,12 +56,14 @@
   color:var(--ink-2);background:rgba(255,255,255,.88);padding:6px 9px;border:1px solid var(--line);
   max-width:min(60ch,70%);z-index:2;pointer-events:none;
 }
-.sidlisko-pily-app .geobadge{
-  position:absolute;left:14px;top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
-  color:var(--ink-2);background:rgba(255,255,255,.88);padding:4px 8px;border:1px solid var(--line);z-index:2;
-}
-
 .sidlisko-pily-app #sp-panel{overflow-y:auto;background:var(--paper);padding:0 0 60px}
+.sidlisko-pily-app #sp-detail{display:none;overflow-y:auto;background:var(--paper);padding:0 0 60px;border-left:1px solid var(--line)}
+.sidlisko-pily-app.has-detail main{grid-template-columns:2fr 1fr 1fr}
+.sidlisko-pily-app.has-detail #sp-detail{display:block;order:1}
+.sidlisko-pily-app.has-detail #sp-panel{order:2;border-left:1px solid var(--line)}
+@media (max-width:900px){
+  .sidlisko-pily-app.has-detail main{grid-template-columns:1fr;grid-template-rows:52vh 1fr 1fr}
+}
 .sidlisko-pily-app .pad{padding:20px}
 .sidlisko-pily-app .crumb{
   display:flex;gap:8px;align-items:center;flex-wrap:wrap;
@@ -115,7 +117,8 @@
 .sidlisko-pily-app .fedge{stroke:#c9c6bf;stroke-width:1.4;cursor:pointer;fill:none;stroke-linecap:round;stroke-dasharray:1 2.2}
 .sidlisko-pily-app .fedge:hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fedge.is-facade{stroke:var(--ink);stroke-width:3;stroke-dasharray:none}
-.sidlisko-pily-app .fedge.is-active{stroke:var(--survey);stroke-width:5;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-active{stroke:#a0a09f;stroke-width:5;stroke-dasharray:none}
+.sidlisko-pily-app .fedge.is-hover{stroke:var(--survey);stroke-width:4;stroke-dasharray:none}
 .sidlisko-pily-app .fhit-mini{stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
 .sidlisko-pily-app .plan .fill{fill:var(--ink);fill-opacity:.32;stroke:none}
 
@@ -125,7 +128,7 @@
   color:var(--ink-2);border:1px solid var(--line);padding:1px 5px;flex:0 0 auto}
 .sidlisko-pily-app ul.list li a{color:var(--ink);text-underline-offset:3px}
 .sidlisko-pily-app .fitem{display:flex;justify-content:space-between;gap:10px;width:100%;background:none;border:0;
-  padding:9px 0;cursor:pointer;text-align:left;border-bottom:1px solid var(--line);align-items:baseline}
+  padding:9px 0;cursor:pointer;text-align:left;align-items:baseline}
 .sidlisko-pily-app .fitem:hover .fname{color:var(--survey)}
 .sidlisko-pily-app .fitem:disabled{cursor:default}
 .sidlisko-pily-app .fitem:disabled:hover .fname{color:inherit}
